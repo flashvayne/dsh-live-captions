@@ -45,6 +45,11 @@ window.__ModuleLoader__.load({
         'resetPos': 'Reset position',
         'lockedHint': 'Locked: click-through, unlock from the panel.',
         'dragHint': 'Drag to move',
+        'resize': 'Resize',
+        'backToLive': 'Back to live',
+        'sentenceLines': 'Visible sentences',
+        'lineOne': '1 sentence',
+        'lineTwo': '2 sentences',
         'lang.auto': 'Auto detect',
         'lang.zh': 'Chinese',
         'lang.en': 'English',
@@ -122,6 +127,11 @@ window.__ModuleLoader__.load({
         'resetPos': '重置位置',
         'lockedHint': '已锁定：可点击穿透，在面板里解锁。',
         'dragHint': '拖动可移动',
+        'resize': '调整大小',
+        'backToLive': '回到最新',
+        'sentenceLines': '显示句数',
+        'lineOne': '1 句',
+        'lineTwo': '2 句',
         'lang.auto': '自动识别',
         'lang.zh': '中文',
         'lang.en': '英文',
@@ -214,29 +224,46 @@ window.__ModuleLoader__.load({
 .mc-line-target{font-size:19px;line-height:1.45;font-weight:600;color:var(--dsw-alias-label-primary)}
 .mc-tag{flex:0 0 auto;font-size:11px;line-height:1.7;padding:0 7px;border-radius:999px;
   border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);white-space:nowrap}
-.mc-lyric{position:fixed;z-index:5;min-width:300px;max-width:min(860px,72vw);pointer-events:auto;
-  display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;
+.mc-lyric{position:fixed;z-index:5;min-width:260px;max-width:min(880px,86vw);pointer-events:auto;
+  display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;overflow:auto;
   border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);
   box-shadow:0 10px 28px rgba(0,0,0,.18);cursor:grab;user-select:none}
 .mc-lyric:active{cursor:grabbing}
 .mc-lyric-locked{pointer-events:none;cursor:default;border-style:dashed}
 .mc-lyric-tools{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding-bottom:6px;
-  border-bottom:1px solid var(--dsw-alias-border-l1);pointer-events:auto}
+  border-bottom:1px solid var(--dsw-alias-border-l1);pointer-events:auto;flex:0 0 auto}
 .mc-lyric-tool{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;
   min-width:26px;height:24px;padding:0 6px;border-radius:6px;border:1px solid transparent;
   background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;cursor:pointer}
 .mc-lyric-tool:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l1)}
 .mc-lyric-tool:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.mc-lyric-body{display:flex;flex-direction:column;gap:6px}
-.mc-lyric .mc-line-source{font-size:calc(var(--mc-lyric-size,22px) * 0.72)}
-.mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px)}
-.mc-records{position:fixed;inset:6vh 6vw;z-index:20;display:flex;flex-direction:column;
+.mc-lyric-tool-on{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}
+.mc-lyric-body{display:flex;flex-direction:column;gap:8px;min-height:0}
+.mc-lyric-entry{display:flex;flex-direction:column;gap:3px;padding-bottom:6px;border-bottom:1px dashed var(--dsw-alias-border-l1)}
+.mc-lyric-entry:last-child{border-bottom:0;padding-bottom:0}
+.mc-lyric .mc-line-source{font-size:calc(var(--mc-lyric-size,22px) * 0.72);line-height:1.4;color:var(--dsw-alias-label-secondary)}
+.mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px);font-weight:600}
+.mc-lyric-resize{position:absolute;right:1px;bottom:1px;width:14px;height:14px;cursor:nwse-resize;
+  pointer-events:auto;border-bottom-right-radius:12px;background:
+  linear-gradient(135deg,transparent 46%,var(--dsw-alias-border-l2) 46%,var(--dsw-alias-border-l2) 58%,transparent 58%)}
+.mc-lyric-badge{position:absolute;left:8px;top:-9px;font-size:10px;line-height:1.6;padding:0 6px;border-radius:999px;
+  background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);pointer-events:auto;cursor:pointer}
+.mc-record-window{position:fixed;z-index:30;display:flex;flex-direction:column;min-width:320px;min-height:240px;
   border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);
   color:var(--dsw-alias-label-primary);box-shadow:0 18px 48px rgba(0,0,0,.28);pointer-events:auto;overflow:hidden}
-.mc-records-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.mc-records-title{font-size:15px;font-weight:600;flex:0 0 auto}
-.mc-records-list{flex:1 1 auto;overflow:auto;padding:8px 16px 16px;display:flex;flex-direction:column;gap:8px}
+.mc-records-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dsw-alias-border-l1);
+  cursor:grab;flex:0 0 auto}
+.mc-records-head:active{cursor:grabbing}
+.mc-records-title{font-size:14px;font-weight:600;flex:0 0 auto}
+.mc-records-list{flex:1 1 auto;overflow:auto;padding:8px 14px 14px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.mc-window-resize{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;pointer-events:auto;
+  background:linear-gradient(135deg,transparent 46%,var(--dsw-alias-border-l2) 46%,var(--dsw-alias-border-l2) 58%,transparent 58%)}
 .mc-record{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mc-record-time{flex:0 0 68px;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.mc-record-texts{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mc-record-src{font-size:13px;line-height:1.5;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.mc-record-tr{font-size:13.5px;line-height:1.5;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
 .mc-record-time{flex:0 0 68px;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary);
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .mc-record-texts{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -331,6 +358,30 @@ window.__ModuleLoader__.load({
           if (event.key === 'Escape') setDraft(value ?? '')
         },
       })
+    }
+
+    /** Which entries the lyric box shows for a given history anchor. */
+    function lyricWindow(entries, anchorSeq, lineCount) {
+      const endIndex = (() => {
+        if (anchorSeq === null) return entries.length
+        const found = entries.findIndex((entry) => entry.seq === anchorSeq)
+        return found < 0 ? entries.length : found + 1
+      })()
+      return {
+        endIndex,
+        visible: entries.slice(Math.max(0, endIndex - lineCount), endIndex),
+        inHistory: anchorSeq !== null && endIndex < entries.length,
+      }
+    }
+
+    /** New anchor after one wheel step: +1 newer, -1 older, null = live. */
+    function nextAnchor(entries, anchorSeq, delta) {
+      if (entries.length === 0) return null
+      const current = anchorSeq === null
+        ? entries.length
+        : Math.max(1, Math.min(entries.length, (entries.findIndex((entry) => entry.seq === anchorSeq) + 1) || entries.length))
+      const next = Math.max(1, Math.min(entries.length, current + delta))
+      return next >= entries.length ? null : entries[next - 1].seq
     }
 
     function Overlay(props) {
@@ -466,11 +517,19 @@ window.__ModuleLoader__.load({
         }
       }, [state, t])
 
-      // Desktop-lyrics box state: drag position, records page data.
+      // Desktop-lyrics box state: drag position, size, history anchor, records window.
       const [lyricPos, setLyricPos] = useState(null)
+      const [lyricSize, setLyricSize] = useState(null)
+      const [anchorSeq, setAnchorSeq] = useState(null)
       const [recordsOpen, setRecordsOpen] = useState(false)
       const [recordsData, setRecordsData] = useState(null)
+      const [recordsGeom, setRecordsGeom] = useState(null)
+      const lyricRef = useRef(null)
       const dragRef = useRef(null)
+      const resizeRef = useRef(null)
+      const recordsMoveRef = useRef(null)
+      const recordsGrowRef = useRef(null)
+      const wheelHandlerRef = useRef(null)
 
       const save = useCallback((patch) => command({ action: 'settings', settings: patch }), [command])
 
@@ -502,7 +561,7 @@ window.__ModuleLoader__.load({
 
       const beginDrag = (event) => {
         if (event.button !== 0) return
-        if (event.target?.closest?.('.mc-lyric-tools')) return
+        if (event.target?.closest?.('.mc-lyric-tools') || event.target?.closest?.('.mc-lyric-resize')) return
         const rect = event.currentTarget.getBoundingClientRect()
         dragRef.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top }
         try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
@@ -528,6 +587,98 @@ window.__ModuleLoader__.load({
         if (drag !== null && typeof drag.x === 'number') save({ lyricX: drag.x, lyricY: drag.y })
       }
 
+      const beginLyricResize = (event) => {
+        event.stopPropagation()
+        const box = lyricRef.current
+        if (box === null) return
+        const rect = box.getBoundingClientRect()
+        resizeRef.current = { startX: event.clientX, startY: event.clientY, w0: rect.width, h0: rect.height, w: rect.width, h: rect.height }
+        try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
+        event.preventDefault()
+      }
+
+      const moveLyricResize = (event) => {
+        const resize = resizeRef.current
+        if (resize === null) return
+        const maxW = (window.innerWidth ?? 1200) - 16
+        const maxH = (window.innerHeight ?? 800) - 16
+        const w = Math.max(260, Math.min(maxW, resize.w0 + (event.clientX - resize.startX)))
+        const h = Math.max(70, Math.min(maxH, resize.h0 + (event.clientY - resize.startY)))
+        resize.w = w
+        resize.h = h
+        setLyricSize({ w, h })
+      }
+
+      const endLyricResize = () => {
+        const resize = resizeRef.current
+        resizeRef.current = null
+        if (resize !== null) save({ lyricW: Math.round(resize.w), lyricH: Math.round(resize.h) })
+      }
+
+      // Wheel walks back through history; the anchor is a sequence number, so the
+      // view stays put while new lines keep arriving.
+      const scrollLyric = (delta) => {
+        setAnchorSeq(nextAnchor(entries, anchorSeq, delta))
+      }
+      wheelHandlerRef.current = scrollLyric
+
+      const recordsGeometry = () => recordsGeom ?? {
+        x: typeof settings.recordsX === 'number' ? settings.recordsX : Math.max(16, Math.round((window.innerWidth ?? 1200) / 2 - 210)),
+        y: typeof settings.recordsY === 'number' ? settings.recordsY : Math.max(16, Math.round((window.innerHeight ?? 800) / 2 - 230)),
+        w: typeof settings.recordsW === 'number' ? settings.recordsW : 420,
+        h: typeof settings.recordsH === 'number' ? settings.recordsH : 460,
+      }
+
+      const beginRecordsMove = (event) => {
+        if (event.button !== 0) return
+        const geometry = recordsGeometry()
+        recordsMoveRef.current = { dx: event.clientX - geometry.x, dy: event.clientY - geometry.y }
+        try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
+        event.preventDefault()
+      }
+
+      const moveRecordsMove = (event) => {
+        const drag = recordsMoveRef.current
+        if (drag === null) return
+        const geometry = recordsGeometry()
+        const x = Math.max(8, Math.min((window.innerWidth ?? 1200) - 140, event.clientX - drag.dx))
+        const y = Math.max(8, Math.min((window.innerHeight ?? 800) - 60, event.clientY - drag.dy))
+        setRecordsGeom({ ...geometry, x, y })
+      }
+
+      const endRecordsMove = () => {
+        const drag = recordsMoveRef.current
+        recordsMoveRef.current = null
+        if (drag === null) return
+        const geometry = recordsGeometry()
+        save({ recordsX: Math.round(geometry.x), recordsY: Math.round(geometry.y) })
+      }
+
+      const beginRecordsResize = (event) => {
+        event.stopPropagation()
+        const geometry = recordsGeometry()
+        recordsGrowRef.current = { startX: event.clientX, startY: event.clientY, w0: geometry.w, h0: geometry.h, w: geometry.w, h: geometry.h }
+        try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
+        event.preventDefault()
+      }
+
+      const moveRecordsResize = (event) => {
+        const resize = recordsGrowRef.current
+        if (resize === null) return
+        const geometry = recordsGeometry()
+        const w = Math.max(320, Math.min((window.innerWidth ?? 1200) - geometry.x - 8, resize.w0 + (event.clientX - resize.startX)))
+        const h = Math.max(240, Math.min((window.innerHeight ?? 800) - geometry.y - 8, resize.h0 + (event.clientY - resize.startY)))
+        resize.w = w
+        resize.h = h
+        setRecordsGeom({ ...geometry, w, h })
+      }
+
+      const endRecordsResize = () => {
+        const resize = recordsGrowRef.current
+        recordsGrowRef.current = null
+        if (resize !== null) save({ recordsW: Math.round(resize.w), recordsH: Math.round(resize.h) })
+      }
+
       const status = state?.status ?? 'idle'
       const running = status === 'running' || status === 'starting'
       const preparing = status === 'preparing'
@@ -542,28 +693,57 @@ window.__ModuleLoader__.load({
         ? Math.min(100, Math.round((mt.progress.loaded / mt.progress.total) * 100))
         : null
 
-      // Two lines: the source sentence, then its translation into the target language.
-      const showTarget = latest !== null
-        && settings.translate !== false
-        && (latest.translation === null || latest.translation !== latest.text)
+      // The box shows `lyricLines` entries ending at the anchor (null = live).
+      const lineCount = settings.lyricLines === 2 ? 2 : 1
+      const { endIndex, visible: visibleEntries, inHistory } = lyricWindow(entries, anchorSeq, lineCount)
       const progress = asr.progress ?? {}
       const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
 
       const lyricX = lyricPos === null ? settings.lyricX : lyricPos.x
       const lyricY = lyricPos === null ? settings.lyricY : lyricPos.y
+      const lyricW = lyricSize === null ? settings.lyricW : lyricSize.w
+      const lyricH = lyricSize === null ? settings.lyricH : lyricSize.h
       const lyricLocked = settings.lyricLocked === true
+      // A stored position may be outside the current window (monitor change),
+      // so clamp it into view instead of rendering off-screen.
+      const clampX = (value) => Math.max(8, Math.min((window.innerWidth ?? 1200) - 120, value))
+      const clampY = (value) => Math.max(8, Math.min((window.innerHeight ?? 800) - 60, value))
       const lyricStyle = {
         '--mc-lyric-size': `${settings.lyricFontSize ?? 22}px`,
         opacity: settings.lyricOpacity ?? 0.92,
+        ...(typeof lyricW === 'number' ? { width: `${Math.min(lyricW, (window.innerWidth ?? 1200) - 16)}px` } : {}),
+        ...(typeof lyricH === 'number' ? { height: `${Math.min(lyricH, (window.innerHeight ?? 800) - 16)}px` } : {}),
         ...(typeof lyricX !== 'number' || typeof lyricY !== 'number'
           ? { left: '50%', bottom: '172px', transform: 'translateX(-50%)' }
-          : { left: `${lyricX}px`, top: `${lyricY}px` }),
+          : { left: `${clampX(lyricX)}px`, top: `${clampY(lyricY)}px` }),
       }
+      const recordsStyle = (() => {
+        const geometry = recordsGeometry()
+        return {
+          left: `${clampX(geometry.x)}px`,
+          top: `${clampY(geometry.y)}px`,
+          width: `${Math.min(geometry.w, (window.innerWidth ?? 1200) - 24)}px`,
+          height: `${Math.min(geometry.h, (window.innerHeight ?? 800) - 24)}px`,
+        }
+      })()
+
+      // Native listener so the box owns the wheel instead of scrolling the app.
+      useEffect(() => {
+        const element = lyricRef.current
+        if (element === null) return undefined
+        const onWheel = (event) => {
+          event.preventDefault()
+          wheelHandlerRef.current?.(event.deltaY > 0 ? 1 : -1)
+        }
+        element.addEventListener('wheel', onWheel, { passive: false })
+        return () => element.removeEventListener('wheel', onWheel)
+      }, [running])
 
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
 
         running ? h('div', {
+          ref: lyricRef,
           className: `mc-lyric${lyricLocked ? ' mc-lyric-locked' : ''}`,
           key: 'lyric',
           style: lyricStyle,
@@ -574,6 +754,12 @@ window.__ModuleLoader__.load({
           onPointerMove: lyricLocked ? undefined : moveDrag,
           onPointerUp: lyricLocked ? undefined : endDrag,
         }, [
+          !lyricLocked && inHistory
+            ? h('button', {
+                className: 'mc-lyric-badge', key: 'history', type: 'button',
+                onClick: () => setAnchorSeq(null), title: t('backToLive'),
+              }, `${t('backToLive')} · −${entries.length - endIndex}`)
+            : null,
           lyricLocked ? null : h('div', { className: 'mc-lyric-tools', key: 'tools' }, [
             h('button', {
               className: 'mc-lyric-tool', key: 'font-down', type: 'button',
@@ -596,6 +782,11 @@ window.__ModuleLoader__.load({
               onClick: () => save({ lyricOpacity: (settings.lyricOpacity ?? 0.92) + 0.08 }),
             }, '◐+'),
             h('button', {
+              className: `mc-lyric-tool${lineCount === 2 ? ' mc-lyric-tool-on' : ''}`, key: 'lines', type: 'button',
+              title: t('sentenceLines'), 'aria-label': t('sentenceLines'),
+              onClick: () => save({ lyricLines: lineCount === 2 ? 1 : 2 }),
+            }, lineCount === 2 ? t('lineTwo') : t('lineOne')),
+            h('button', {
               className: 'mc-lyric-tool', key: 'toggle-source', type: 'button',
               title: t('tagSource'), 'aria-pressed': settings.lyricShowSource !== false,
               onClick: () => save({ lyricShowSource: settings.lyricShowSource === false }),
@@ -608,43 +799,58 @@ window.__ModuleLoader__.load({
             h('button', {
               className: 'mc-lyric-tool', key: 'reset-pos', type: 'button',
               title: t('resetPos'), 'aria-label': t('resetPos'),
-              onClick: () => { setLyricPos(null); save({ lyricReset: true }) },
+              onClick: () => { setLyricPos(null); setLyricSize(null); save({ lyricReset: true }) },
             }, '⟲'),
           ]),
-          h('div', { className: 'mc-lyric-body', key: 'body' }, [
-            latest === null
+          h('div', { className: 'mc-lyric-body', key: 'body' },
+            visibleEntries.length === 0
               ? h('div', { className: 'mc-line mc-line-source', key: 'listening' }, t('listening'))
-              : (settings.lyricShowSource === false ? null : h('div', { className: 'mc-line mc-line-source', key: 'source' }, [
-                  h('span', { className: 'mc-tag', key: 'tag' }, t('tagSource')),
-                  h('span', { className: 'mc-line-text', key: 'text' }, latest.text),
-                ])),
-            latest !== null && showTarget
-              ? h('div', { className: 'mc-line mc-line-target', key: 'target' }, [
-                  h('span', { className: 'mc-tag', key: 'tag' }, t('tagTarget')),
-                  h('span', { className: 'mc-line-text', key: 'text' }, latest.translation ?? '…'),
-                ])
-              : null,
-          ]),
+              : visibleEntries.map((entry) => h('div', { className: 'mc-lyric-entry', key: entry.seq }, [
+                  settings.lyricShowSource === false
+                    ? null
+                    : h('div', { className: 'mc-line mc-line-source', key: 'source' }, [
+                        h('span', { className: 'mc-tag', key: 'tag' }, t('tagSource')),
+                        h('span', { className: 'mc-line-text', key: 'text' }, entry.text),
+                      ]),
+                  settings.translate === false || (entry.translation !== null && entry.translation === entry.text)
+                    ? null
+                    : h('div', { className: 'mc-line mc-line-target', key: 'target' }, [
+                        h('span', { className: 'mc-tag', key: 'tag' }, t('tagTarget')),
+                        h('span', { className: 'mc-line-text', key: 'text' }, entry.translation ?? '…'),
+                      ]),
+                ]))),
+          lyricLocked ? null : h('div', {
+            className: 'mc-lyric-resize', key: 'resize', title: t('resize'),
+            onPointerDown: beginLyricResize,
+            onPointerMove: moveLyricResize,
+            onPointerUp: endLyricResize,
+          }),
         ]) : null,
 
         recordsOpen ? h('section', {
-          className: 'mc-records', key: 'records', role: 'dialog', 'aria-label': t('recordsTitle'),
+          className: 'mc-record-window', key: 'records', role: 'dialog', 'aria-label': t('recordsTitle'),
+          style: recordsStyle,
         }, [
-          h('header', { className: 'mc-records-head', key: 'head' }, [
+          h('header', {
+            className: 'mc-records-head', key: 'head',
+            onPointerDown: beginRecordsMove,
+            onPointerMove: moveRecordsMove,
+            onPointerUp: endRecordsMove,
+          }, [
             h('span', { className: 'mc-records-title', key: 'title' }, t('recordsTitle')),
             h('select', {
               className: 'mc-select', key: 'pick',
-              style: { flex: '1 1 auto', maxWidth: '280px' },
+              style: { flex: '1 1 auto', minWidth: '90px' },
               value: recordsData?.sessionId ?? '',
               'aria-label': t('recordsPick'),
               onChange: (event) => { void loadRecords(event.target.value) },
             }, (recordsData?.sessions ?? []).map((session) => h('option', { key: session.id, value: session.id },
               `${session.id}${session.entries ? ` · ${session.entries}` : ''}`))),
             h('button', {
-              className: 'mc-ghost-btn', key: 'copy', type: 'button',
+              className: 'mc-icon-btn', key: 'copy', type: 'button',
               disabled: (recordsData?.records?.entries ?? []).length === 0,
-              onClick: copyRecords,
-            }, copied ? t('copied') : t('copyAll')),
+              onClick: copyRecords, title: copied ? t('copied') : t('copyAll'),
+            }, copied ? '✓' : '⧉'),
             h('button', {
               className: 'mc-icon-btn', key: 'close', type: 'button',
               onClick: () => setRecordsOpen(false), 'aria-label': t('close'), title: t('close'),
@@ -662,6 +868,12 @@ window.__ModuleLoader__.load({
                       : null,
                   ]),
                 ]))),
+          h('div', {
+            className: 'mc-window-resize', key: 'resize', title: t('resize'),
+            onPointerDown: beginRecordsResize,
+            onPointerMove: moveRecordsResize,
+            onPointerUp: endRecordsResize,
+          }),
         ]) : null,
 
         h('div', { className: 'mc-dock', key: 'dock' }, [
@@ -810,16 +1022,12 @@ window.__ModuleLoader__.load({
 
               h('div', { className: 'mc-row', key: 'lyric-tools' }, [
                 h('button', {
-                  className: 'mc-ghost-btn', key: 'records', type: 'button',
-                  onClick: () => { setRecordsOpen(true); void loadRecords() },
-                }, t('records')),
-                h('button', {
                   className: 'mc-ghost-btn', key: 'lyric-lock', type: 'button',
                   onClick: () => save({ lyricLocked: !lyricLocked }),
                 }, lyricLocked ? t('unlock') : t('lock')),
                 h('button', {
                   className: 'mc-ghost-btn', key: 'lyric-reset', type: 'button',
-                  onClick: () => { setLyricPos(null); save({ lyricReset: true }) },
+                  onClick: () => { setLyricPos(null); setLyricSize(null); save({ lyricReset: true }) },
                 }, t('resetPos')),
               ]),
 
@@ -877,8 +1085,16 @@ window.__ModuleLoader__.load({
 
               h('div', { className: 'mc-section-title', key: 'tr-title' }, [
                 h('span', { key: 'left' }, `${t('transcript')}${state?.totalEntries ? ` · ${state.totalEntries} ${t('lines')}` : ''}`),
-                state?.session ? h('span', { key: 'right', style: { fontVariantNumeric: 'tabular-nums' } },
-                  `${state.session.segments} ${t('segments')}`) : null,
+                h('span', { key: 'right', style: { display: 'flex', alignItems: 'center', gap: '8px' } }, [
+                  state?.session
+                    ? h('span', { key: 'segments', style: { fontVariantNumeric: 'tabular-nums' } }, `${state.session.segments} ${t('segments')}`)
+                    : null,
+                  h('button', {
+                    className: 'mc-icon-btn', key: 'records-popup', type: 'button',
+                    title: t('recordsTitle'), 'aria-label': t('recordsTitle'),
+                    onClick: () => { setRecordsOpen((value) => !value); if (!recordsOpen) void loadRecords() },
+                  }, `⧉ ${t('records')}`),
+                ]),
               ]),
 
               entries.length === 0
@@ -930,6 +1146,7 @@ window.__ModuleLoader__.load({
 
     return {
       inject: ['slots', 'locale'],
+      __test: { lyricWindow, nextAnchor },
       apply(ctx) {
         try {
           ctx.effect(() => ctx.locale.register(NS, DICT), 'meeting-captions: locale')

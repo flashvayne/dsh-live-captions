@@ -106,7 +106,36 @@ const TOOL_PARAMETERS = {
     },
     lyricReset: {
       type: 'boolean',
-      description: '重置歌词框位置。',
+      description: '重置歌词框位置与大小。',
+    },
+    lyricW: {
+      type: 'number',
+      description: '歌词框宽度像素（260 起）。',
+    },
+    lyricH: {
+      type: 'number',
+      description: '歌词框高度像素（70 起）。',
+    },
+    lyricLines: {
+      type: 'number',
+      enum: [1, 2],
+      description: '歌词框显示几句（1 或 2）。',
+    },
+    recordsX: {
+      type: 'number',
+      description: '记录弹窗左边距像素。',
+    },
+    recordsY: {
+      type: 'number',
+      description: '记录弹窗上边距像素。',
+    },
+    recordsW: {
+      type: 'number',
+      description: '记录弹窗宽度像素（默认 420）。',
+    },
+    recordsH: {
+      type: 'number',
+      description: '记录弹窗高度像素（默认 460）。',
     },
     title: {
       type: 'string',
@@ -213,8 +242,15 @@ export function apply(ctx, config) {
             lyricOpacity: input.lyricOpacity,
             lyricX: input.lyricX,
             lyricY: input.lyricY,
+            lyricW: input.lyricW,
+            lyricH: input.lyricH,
+            lyricLines: input.lyricLines,
             lyricLocked: input.lyricLocked,
             lyricReset: input.lyricReset,
+            recordsX: input.recordsX,
+            recordsY: input.recordsY,
+            recordsW: input.recordsW,
+            recordsH: input.recordsH,
           })
           const state = controller.state(0)
           return { ok: true, summary: summarize(state) }
