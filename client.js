@@ -21,6 +21,7 @@ window.__ModuleLoader__.load({
         'minutes': 'Minutes',
         'generating': 'Writing minutes…',
         'clear': 'Clear',
+        'confirmClear': 'Confirm clear?',
         'copy': 'Copy',
         'copied': 'Copied',
         'close': 'Close',
@@ -67,6 +68,7 @@ window.__ModuleLoader__.load({
         'offlineOn': 'Offline mode: recognition and translation both stay on this machine. Meeting minutes need the cloud model and are unavailable.',
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
+        'retry': 'Retry',
         'minutesUnavailable': 'Offline mode: minutes unavailable',
         'localUrl': 'Endpoint',
         'localModel': 'Model',
@@ -100,6 +102,7 @@ window.__ModuleLoader__.load({
         'minutes': '生成纪要',
         'generating': '正在生成纪要…',
         'clear': '清空',
+        'confirmClear': '确认清空？',
         'copy': '复制',
         'copied': '已复制',
         'close': '关闭',
@@ -146,6 +149,7 @@ window.__ModuleLoader__.load({
         'offlineOn': '离线模式：识别和翻译都在本机完成；会议纪要需要云端模型，此时不可用。',
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
+        'retry': '重试',
         'minutesUnavailable': '离线模式：纪要不可用',
         'localUrl': '服务地址',
         'localModel': '模型名',
@@ -361,9 +365,12 @@ window.__ModuleLoader__.load({
       const [state, setState] = useState(null)
       const [entries, setEntries] = useState([])
       const [open, setOpen] = useState(false)
+      const [recordsOpen, setRecordsOpen] = useState(false)
       const [busy, setBusy] = useState('')
       const [notice, setNotice] = useState('')
       const [copied, setCopied] = useState(false)
+      const [clearArmed, setClearArmed] = useState(false)
+      const clearArmRef = useRef(null)
       const sinceRef = useRef(0)
       const sessionRef = useRef(null)
       const aliveRef = useRef(true)
@@ -377,14 +384,18 @@ window.__ModuleLoader__.load({
         if (distance < 96) list.scrollTop = list.scrollHeight
       }, [entries.length])
 
+      // Escape closes the records pop-up first, then the panel; only one of the
+      // two responds so the other stays open underneath.
       useEffect(() => {
-        if (!open) return undefined
+        if (!open && !recordsOpen) return undefined
         const onKeyDown = (event) => {
-          if (event.key === 'Escape') setOpen(false)
+          if (event.key !== 'Escape') return
+          if (recordsOpen) setRecordsOpen(false)
+          else setOpen(false)
         }
         document.addEventListener('keydown', onKeyDown)
         return () => document.removeEventListener('keydown', onKeyDown)
-      }, [open])
+      }, [open, recordsOpen])
 
       const applyState = useCallback((next) => {
         if (!next) return
@@ -489,7 +500,6 @@ window.__ModuleLoader__.load({
       const [lyricPos, setLyricPos] = useState(null)
       const [lyricSize, setLyricSize] = useState(null)
       const [pinned, setPinned] = useState(true)
-      const [recordsOpen, setRecordsOpen] = useState(false)
       const [recordsData, setRecordsData] = useState(null)
       const [recordsGeom, setRecordsGeom] = useState(null)
       const lyricRef = useRef(null)
@@ -900,8 +910,19 @@ window.__ModuleLoader__.load({
                 h('button', {
                   className: 'mc-ghost-btn', key: 'clear', type: 'button',
                   disabled: busy !== '' || entries.length === 0,
-                  onClick: () => command({ action: 'clear' }),
-                }, t('clear')),
+                  onClick: () => {
+                    if (!clearArmed) {
+                      setClearArmed(true)
+                      clearTimeout(clearArmRef.current)
+                      clearArmRef.current = setTimeout(() => setClearArmed(false), 4000)
+                      return
+                    }
+                    clearTimeout(clearArmRef.current)
+                    clearArmRef.current = null
+                    setClearArmed(false)
+                    void command({ action: 'clear' })
+                  },
+                }, clearArmed ? t('confirmClear') : t('clear')),
               ]),
 
               asrBusy && percent !== null
@@ -1011,10 +1032,18 @@ window.__ModuleLoader__.load({
               lyricLocked ? h('div', { className: 'mc-hint', key: 'locked-hint' }, t('lockedHint')) : null,
 
               (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready'
-                ? h('div', { className: 'mc-hint', key: 'mt-status' },
+                ? h('div', { className: 'mc-row', key: 'mt-status' }, [
+                    h('div', { className: 'mc-hint', key: 'hint' },
+                      mt.state === 'failed'
+                        ? `${t('mtFailed')}：${mt.error ?? ''}`
+                        : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`),
                     mt.state === 'failed'
-                      ? `${t('mtFailed')}：${mt.error ?? ''}`
-                      : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`)
+                      ? h('button', {
+                          className: 'mc-ghost-btn', key: 'mt-retry', type: 'button',
+                          onClick: () => save({ translateEngine: 'builtin' }),
+                        }, t('retry'))
+                      : null,
+                  ])
                 : null,
               (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready' && mtPercent !== null
                 ? h('div', {
