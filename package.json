@@ -30,6 +30,7 @@
     "cordis.patch.yml",
     "lib",
     "native",
+    "models",
     "locale/*.json",
     "README.md",
     "icon.svg"

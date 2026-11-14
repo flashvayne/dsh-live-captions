@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Live captions",
-    "description": "Captures system audio and the microphone, transcribes speech with a local SenseVoice model, translates each line into the language you choose and floats the subtitles over the window. Translation can run on the cloud default model, a built-in offline multilingual model (about 600 MB on first use), or your own Ollama/LM Studio server; \"Offline mode\" keeps recognition and translation entirely on this machine and disables meeting minutes. Open it from the \"Live captions\" pill at the bottom right; the first run also downloads about 240 MB of recognition models. Audio never leaves the machine — only subtitle text that needs cloud translation or minutes is sent to the model provider."
+    "description": "Captures system audio and the microphone, transcribes speech with a local SenseVoice model (the model ships with the plugin, so recognition needs no download), translates each line into the language you choose and floats the subtitles over the window. Translation can run on the cloud default model, a built-in offline multilingual model (about 600 MB on first use), or your own Ollama/LM Studio server; \"Offline mode\" keeps recognition and translation entirely on this machine and disables meeting minutes. Open it from the \"Live captions\" pill at the bottom right. Audio never leaves the machine — only subtitle text that needs cloud translation or minutes is sent to the model provider."
   }
 }

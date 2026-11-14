@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({
         'stop': 'Stop',
         'prepare': 'Download model',
         'downloadModel': 'Download model (≈240 MB)',
-        'firstRunHint': 'The first run downloads about 240 MB of recognition models. Speech is recognised on this machine; audio is never uploaded.',
+        'firstRunHint': 'The recognition model ships with the plugin and is prepared on this machine; nothing is downloaded. Audio is recognised locally and never uploaded.',
         'preparing': 'Preparing model',
         'minutes': 'Minutes',
         'generating': 'Writing minutes…',
@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
         'stop': '停止',
         'prepare': '下载识别模型',
         'downloadModel': '下载识别模型（约 240 MB）',
-        'firstRunHint': '首次使用需要下载约 240 MB 的识别模型；语音在本机识别，音频不会上传。',
+        'firstRunHint': '识别模型已随插件打包，首次点「开始」会在本机准备好，无需联网下载；语音在本机识别，音频不会上传。',
         'preparing': '正在准备模型',
         'minutes': '生成纪要',
         'generating': '正在生成纪要…',
@@ -897,16 +897,6 @@ window.__ModuleLoader__.load({
                       disabled: busy !== '' || !asr.available,
                       onClick: () => command({ action: 'start' }),
                     }, t('start')),
-                // Convention over configuration: "开始" already downloads the
-                // recognition model on first run. This ghost button is only an
-                // optional pre-download / retry, shown when the model is absent.
-                !running && !preparing && !modelReady && asr.available && !asrBusy
-                  ? h('button', {
-                      className: 'mc-ghost-btn', key: 'download', type: 'button',
-                      disabled: busy !== '',
-                      onClick: () => command({ action: 'prepare' }),
-                    }, t('downloadModel'))
-                  : null,
                 h('button', {
                   className: 'mc-ghost-btn', key: 'minutes', type: 'button',
                   disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0 || settings.offlineMode === true,

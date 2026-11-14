@@ -7,10 +7,23 @@ import { MeetingController } from './lib/controller.js'
 
 const LOG_LIMIT = 2 * 1024 * 1024
 
+function homeRoot() {
+  return process.env.DSH_HOME || join(homedir(), '.dsh')
+}
+
 function resolveDataRoot(config) {
   if (typeof config?.dataRoot === 'string' && config.dataRoot !== '') return config.dataRoot
-  const home = process.env.DSH_HOME || join(homedir(), '.dsh')
-  return join(home, 'meeting-captions')
+  return join(homeRoot(), 'meeting-captions')
+}
+
+/**
+ * Where the shipped SenseVoice provider keeps its models. This must match the
+ * `dataRoot` of the `meeting-captions-sensevoice` row in cordis.patch.yml
+ * (`dshHomePath('speech-to-text', 'sensevoice')`); the plugin seeds the bundled
+ * model files there so recognition never needs a network download.
+ */
+function resolveSttDataRoot() {
+  return join(homeRoot(), 'speech-to-text', 'sensevoice')
 }
 
 function createLogger(dataRoot) {
@@ -45,7 +58,7 @@ const TOOL_PARAMETERS = {
     action: {
       type: 'string',
       enum: ['start', 'stop', 'status', 'prepare', 'install_mt_deps', 'minutes', 'settings', 'records'],
-      description: 'start/stop 控制实时字幕；status 读取状态；prepare 下载识别模型；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
+      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（已随插件打包，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
     },
     session: {
       type: 'string',
@@ -192,7 +205,14 @@ export function apply(ctx, config) {
     log(`packageDir resolution failed: ${error.message}`)
   }
 
-  const controller = new MeetingController({ ctx, config: config ?? {}, dataRoot, packageDir, log })
+  const controller = new MeetingController({
+    ctx,
+    config: config ?? {},
+    dataRoot,
+    packageDir,
+    sttDataRoot: resolveSttDataRoot(),
+    log,
+  })
 
   ctx.effect(() => () => {
     log('plugin unloading')
