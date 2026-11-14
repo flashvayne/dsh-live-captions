@@ -1,6 +1,7 @@
-import { appendFileSync, mkdirSync, statSync } from 'node:fs'
+import { appendFileSync, mkdirSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { registerApi } from './lib/api.js'
 import { MeetingController } from './lib/controller.js'
 
@@ -43,8 +44,8 @@ const TOOL_PARAMETERS = {
   properties: {
     action: {
       type: 'string',
-      enum: ['start', 'stop', 'status', 'prepare', 'minutes', 'settings', 'records'],
-      description: 'start/stop 控制实时字幕；status 读取状态；prepare 下载识别模型；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
+      enum: ['start', 'stop', 'status', 'prepare', 'install_mt_deps', 'minutes', 'settings', 'records'],
+      description: 'start/stop 控制实时字幕；status 读取状态；prepare 下载识别模型；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
     },
     session: {
       type: 'string',
@@ -181,7 +182,17 @@ export function apply(ctx, config) {
   const log = createLogger(dataRoot)
   log(`plugin activated, dataRoot=${dataRoot}`)
 
-  const controller = new MeetingController({ ctx, config: config ?? {}, dataRoot, log })
+  // The built-in translation dependency is installed on demand into this
+  // package's own node_modules, so it must know where it lives (realpath so a
+  // linked/pnpm install still resolves to the real directory).
+  let packageDir = null
+  try {
+    packageDir = realpathSync(dirname(fileURLToPath(import.meta.url)))
+  } catch (error) {
+    log(`packageDir resolution failed: ${error.message}`)
+  }
+
+  const controller = new MeetingController({ ctx, config: config ?? {}, dataRoot, packageDir, log })
 
   ctx.effect(() => () => {
     log('plugin unloading')
@@ -256,6 +267,10 @@ export function apply(ctx, config) {
         if (action === 'prepare') {
           const result = controller.prepare()
           return { ok: result.ok !== false, summary: result.ok === false ? `准备失败：${result.error}` : `已开始准备识别模型（${result.providerId}），可从面板查看进度。` }
+        }
+        if (action === 'install_mt_deps') {
+          const result = await controller.installMtDeps()
+          return { ok: result.ok !== false, summary: result.ok === false ? `依赖下载失败：${result.error}` : (result.note ?? '内置翻译依赖已就绪。') }
         }
         if (action === 'start') {
           if (input.source || input.targetLanguage || input.sourceLanguage || input.translate !== undefined

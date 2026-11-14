@@ -69,6 +69,7 @@ window.__ModuleLoader__.load({
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
         'retry': 'Retry',
+        'downloadDeps': 'Download dependency',
         'minutesUnavailable': 'Offline mode: minutes unavailable',
         'localUrl': 'Endpoint',
         'localModel': 'Model',
@@ -150,6 +151,7 @@ window.__ModuleLoader__.load({
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
         'retry': '重试',
+        'downloadDeps': '下载依赖',
         'minutesUnavailable': '离线模式：纪要不可用',
         'localUrl': '服务地址',
         'localModel': '模型名',
@@ -890,17 +892,21 @@ window.__ModuleLoader__.load({
                       disabled: busy !== '',
                       onClick: () => command({ action: 'stop' }),
                     }, t('stop'))
-                  : modelReady
-                    ? h('button', {
-                        className: 'mc-primary-btn', key: 'start', type: 'button',
-                        disabled: busy !== '' || !asr.available,
-                        onClick: () => command({ action: 'start' }),
-                      }, t('start'))
-                    : h('button', {
-                        className: 'mc-primary-btn', key: 'download', type: 'button',
-                        disabled: busy !== '' || !asr.available || asrBusy,
-                        onClick: () => command({ action: 'prepare' }),
-                      }, asrBusy ? t('preparing') : t('downloadModel')),
+                  : h('button', {
+                      className: 'mc-primary-btn', key: 'start', type: 'button',
+                      disabled: busy !== '' || !asr.available,
+                      onClick: () => command({ action: 'start' }),
+                    }, t('start')),
+                // Convention over configuration: "开始" already downloads the
+                // recognition model on first run. This ghost button is only an
+                // optional pre-download / retry, shown when the model is absent.
+                !running && !preparing && !modelReady && asr.available && !asrBusy
+                  ? h('button', {
+                      className: 'mc-ghost-btn', key: 'download', type: 'button',
+                      disabled: busy !== '',
+                      onClick: () => command({ action: 'prepare' }),
+                    }, t('downloadModel'))
+                  : null,
                 h('button', {
                   className: 'mc-ghost-btn', key: 'minutes', type: 'button',
                   disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0 || settings.offlineMode === true,
@@ -1034,10 +1040,18 @@ window.__ModuleLoader__.load({
               (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready'
                 ? h('div', { className: 'mc-row', key: 'mt-status' }, [
                     h('div', { className: 'mc-hint', key: 'hint' },
-                      mt.state === 'failed'
-                        ? `${t('mtFailed')}：${mt.error ?? ''}`
-                        : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`),
-                    mt.state === 'failed'
+                      mt.installing
+                        ? (mt.installProgress?.message ?? t('mtPreparing'))
+                        : mt.state === 'failed'
+                          ? `${t('mtFailed')}：${mt.error ?? ''}`
+                          : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`),
+                    mt.missingDeps && !mt.installing
+                      ? h('button', {
+                          className: 'mc-ghost-btn', key: 'mt-install', type: 'button',
+                          onClick: () => command({ action: 'install_mt_deps' }),
+                        }, t('downloadDeps'))
+                      : null,
+                    mt.state === 'failed' && !mt.missingDeps && !mt.installing
                       ? h('button', {
                           className: 'mc-ghost-btn', key: 'mt-retry', type: 'button',
                           onClick: () => save({ translateEngine: 'builtin' }),

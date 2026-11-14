@@ -34,9 +34,6 @@
     "README.md",
     "icon.svg"
   ],
-  "optionalDependencies": {
-    "@huggingface/transformers": "^3.0.0"
-  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"
