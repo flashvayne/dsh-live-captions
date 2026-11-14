@@ -45,7 +45,13 @@ window.__ModuleLoader__.load({
         'translate': 'Translate',
         'engine': 'Translation engine',
         'engine.cloud': 'Cloud model',
+        'engine.builtin': 'Built-in offline model',
         'engine.local': 'Local server',
+        'offline': 'Offline mode',
+        'offlineOn': 'Offline mode: recognition and translation both stay on this machine. Meeting minutes need the cloud model and are unavailable.',
+        'mtPreparing': 'Preparing the built-in translation model',
+        'mtFailed': 'Built-in model unavailable',
+        'minutesUnavailable': 'Offline mode: minutes unavailable',
         'localUrl': 'Endpoint',
         'localModel': 'Model',
         'localHint': 'Ollama: http://127.0.0.1:11434/v1 · LM Studio: http://127.0.0.1:1234/v1',
@@ -102,7 +108,13 @@ window.__ModuleLoader__.load({
         'translate': '翻译字幕',
         'engine': '翻译引擎',
         'engine.cloud': '云端默认模型',
+        'engine.builtin': '内置离线模型',
         'engine.local': '本地推理服务',
+        'offline': '一键离线',
+        'offlineOn': '离线模式：识别和翻译都在本机完成；会议纪要需要云端模型，此时不可用。',
+        'mtPreparing': '正在准备内置翻译模型',
+        'mtFailed': '内置模型不可用',
+        'minutesUnavailable': '离线模式：纪要不可用',
         'localUrl': '服务地址',
         'localModel': '模型名',
         'localHint': 'Ollama：http://127.0.0.1:11434/v1 · LM Studio：http://127.0.0.1:1234/v1',
@@ -408,6 +420,10 @@ window.__ModuleLoader__.load({
       const previous = entries.length > 1 ? entries[entries.length - 2] : null
       const settings = state?.settings ?? { source: 'both', sourceLanguage: 'auto', targetLanguage: 'zh', translate: true }
       const minutes = state?.minutes ?? { generating: false, text: '', path: null, error: null }
+      const mt = state?.mt ?? { state: 'idle', progress: {}, model: '', error: null }
+      const mtPercent = mt.progress && mt.progress.total > 0
+        ? Math.min(100, Math.round((mt.progress.loaded / mt.progress.total) * 100))
+        : null
 
       const captionPrimary = latest === null ? null : (latest.translation || latest.text)
       const captionSecondary = latest === null || latest.translation === null || latest.translation === latest.text
@@ -467,7 +483,8 @@ window.__ModuleLoader__.load({
                       }, asrBusy ? t('preparing') : t('downloadModel')),
                 h('button', {
                   className: 'mc-ghost-btn', key: 'minutes', type: 'button',
-                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0,
+                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0 || settings.offlineMode === true,
+                  title: settings.offlineMode === true ? t('minutesUnavailable') : undefined,
                   onClick: () => command({ action: 'minutes' }),
                 }, minutes.generating ? t('generating') : t('minutes')),
                 h('button', {
@@ -536,14 +553,52 @@ window.__ModuleLoader__.load({
                   h('span', { key: 'label' }, t('engine')),
                   h('select', {
                     className: 'mc-select', key: 'select',
-                    value: settings.translateEngine === 'local' ? 'local' : 'cloud',
+                    value: settings.offlineMode === true
+                      ? 'builtin'
+                      : settings.translateEngine === 'local'
+                        ? 'local'
+                        : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
+                    disabled: settings.offlineMode === true,
                     onChange: (event) => command({ action: 'settings', settings: { translateEngine: event.target.value } }),
                   }, [
                     h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
+                    h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
                     h('option', { key: 'local', value: 'local' }, t('engine.local')),
                   ]),
                 ]),
+                h('label', {
+                  className: 'mc-field', key: 'offline',
+                  style: { flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' },
+                }, [
+                  h('input', {
+                    key: 'checkbox', type: 'checkbox', checked: settings.offlineMode === true,
+                    onChange: (event) => command({
+                      action: 'settings',
+                      settings: event.target.checked
+                        ? { offlineMode: true, translateEngine: 'builtin' }
+                        : { offlineMode: false },
+                    }),
+                  }),
+                  h('span', { key: 'label' }, t('offline')),
+                ]),
               ]),
+
+              settings.offlineMode === true
+                ? h('div', { className: 'mc-hint', key: 'offline-hint' }, t('offlineOn'))
+                : null,
+
+              (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready'
+                ? h('div', { className: 'mc-hint', key: 'mt-status' },
+                    mt.state === 'failed'
+                      ? `${t('mtFailed')}：${mt.error ?? ''}`
+                      : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`)
+                : null,
+              (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready' && mtPercent !== null
+                ? h('div', {
+                    className: 'mc-progress', key: 'mt-progress',
+                    role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
+                  }, h('span', { style: { width: `${mtPercent}%` } }))
+                : null,
 
               settings.translateEngine === 'local'
                 ? h('div', { className: 'mc-row', key: 'local-fields' }, [
@@ -613,7 +668,8 @@ window.__ModuleLoader__.load({
 
               minutes.text
                 ? h('pre', { className: 'mc-minutes', key: 'minutes' }, minutes.text)
-                : h('div', { className: 'mc-empty', key: 'minutes-empty' }, t('minutesEmpty')),
+                : h('div', { className: 'mc-empty', key: 'minutes-empty' },
+                    settings.offlineMode === true ? t('minutesUnavailable') : t('minutesEmpty')),
 
               minutes.error ? h('div', { className: 'mc-error', key: 'minutes-error' }, minutes.error) : null,
               minutes.path ? h('div', { className: 'mc-hint', key: 'minutes-path', title: minutes.path }, `${t('minutesPath')}: ${minutes.path}`) : null,

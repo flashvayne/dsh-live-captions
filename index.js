@@ -65,8 +65,12 @@ const TOOL_PARAMETERS = {
     },
     translateEngine: {
       type: 'string',
-      enum: ['cloud', 'local'],
-      description: '翻译引擎：cloud=profile 的云端默认模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端模型。',
+      enum: ['cloud', 'builtin', 'local'],
+      description: '翻译引擎：cloud=云端默认模型；builtin=插件内置的离线多语种模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端模型。',
+    },
+    offlineMode: {
+      type: 'boolean',
+      description: '一键离线：字幕识别与翻译全部在本机完成（内置模型），此模式下会议纪要不可用。',
     },
     localBaseUrl: {
       type: 'string',
@@ -98,7 +102,12 @@ function summarize(state) {
   lines.push(`状态：${statusText}${state.error ? `（${state.error}）` : ''}`)
   lines.push(`识别：${state.asr.providerName ?? '未知'} / ${state.asr.phase}${state.asr.message ? `（${state.asr.message}）` : ''}`)
   lines.push(`来源：${state.settings.source}；识别语言：${state.settings.sourceLanguage}；字幕语言：${state.targetLabel}`)
-  lines.push(`翻译：${state.engine?.label ?? '未知'}（会议纪要固定用云端模型）`)
+  lines.push(`翻译：${state.engine?.label ?? '未知'}${state.offline ? '（离线模式，会议纪要不可用）' : '（会议纪要固定用云端模型）'}`)
+  if (state.mt && state.mt.state !== 'ready' && (state.offline || state.settings.translateEngine === 'builtin')) {
+    const progress = state.mt.progress ?? {}
+    const percent = progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : null
+    lines.push(`内置翻译模型：${state.mt.state}${percent === null ? '' : ` ${percent}%`}${state.mt.error ? `（${state.mt.error}）` : ''}`)
+  }
   if (state.session !== null) {
     lines.push(`本次：${state.session.segments} 段 / ${state.totalEntries} 条字幕`)
   }
@@ -127,11 +136,15 @@ export function apply(ctx, config) {
     void controller.dispose()
   }, 'meeting-captions: controller')
 
-  const disposeApi = registerApi({ ctx, controller, log })
-  ctx.effect(() => disposeApi, 'meeting-captions: api')
+  // Both the API and the agent tool depend on services that may not exist yet
+  // during a cold boot; `ctx.inject` registers them as soon as each appears.
+  ctx.inject(['webServer'], (scoped) => {
+    const dispose = registerApi({ ctx: scoped, controller, log })
+    scoped.effect(() => dispose, 'meeting-captions: api')
+  })
 
-  const tools = ctx.get('tools')
-  if (tools !== undefined) {
+  ctx.inject(['tools'], (scoped) => {
+    const tools = scoped.tools
     const dispose = tools.register({
       name: TOOL_NAME,
       description: '控制本机实时多语言字幕：采集系统声音/麦克风、识别语音、翻译字幕、生成会议纪要。不传 action 之外的参数时沿用已保存的设置。',
@@ -165,6 +178,7 @@ export function apply(ctx, config) {
             targetLanguage: input.targetLanguage,
             translate: input.translate,
             translateEngine: input.translateEngine,
+            offlineMode: input.offlineMode,
             localBaseUrl: input.localBaseUrl,
             localModel: input.localModel,
           })
@@ -181,13 +195,14 @@ export function apply(ctx, config) {
         }
         if (action === 'start') {
           if (input.source || input.targetLanguage || input.sourceLanguage || input.translate !== undefined
-            || input.translateEngine || input.localBaseUrl || input.localModel) {
+            || input.translateEngine || input.offlineMode !== undefined || input.localBaseUrl || input.localModel) {
             controller.updateSettings({
               source: input.source,
               sourceLanguage: input.sourceLanguage,
               targetLanguage: input.targetLanguage,
               translate: input.translate,
               translateEngine: input.translateEngine,
+              offlineMode: input.offlineMode,
               localBaseUrl: input.localBaseUrl,
               localModel: input.localModel,
             })
@@ -216,8 +231,6 @@ export function apply(ctx, config) {
         return { ok: false, summary: `未知操作：${String(action)}` }
       },
     }, {})
-    ctx.effect(() => dispose, 'meeting-captions: tool')
-  } else {
-    log('tools service unavailable; the agent tool is not registered')
-  }
+    scoped.effect(() => dispose, 'meeting-captions: tool')
+  })
 }

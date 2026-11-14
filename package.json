@@ -19,6 +19,9 @@
     "README.md",
     "icon.svg"
   ],
+  "dependencies": {
+    "@huggingface/transformers": "^3.0.0"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
