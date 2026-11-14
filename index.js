@@ -43,8 +43,12 @@ const TOOL_PARAMETERS = {
   properties: {
     action: {
       type: 'string',
-      enum: ['start', 'stop', 'status', 'prepare', 'minutes', 'settings'],
-      description: 'start/stop 控制实时字幕；status 读取状态；prepare 下载识别模型；minutes 生成会议纪要；settings 修改来源或语言。',
+      enum: ['start', 'stop', 'status', 'prepare', 'minutes', 'settings', 'records'],
+      description: 'start/stop 控制实时字幕；status 读取状态；prepare 下载识别模型；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
+    },
+    session: {
+      type: 'string',
+      description: 'records 动作要查看的会话 id（省略则取最新一次）。',
     },
     source: {
       type: 'string',
@@ -79,6 +83,30 @@ const TOOL_PARAMETERS = {
     localModel: {
       type: 'string',
       description: '本地模型名，例如 qwen2.5:7b（Ollama）或你加载的模型 id。',
+    },
+    lyricFontSize: {
+      type: 'number',
+      description: '桌面歌词框字号（14–34，默认 22）。',
+    },
+    lyricOpacity: {
+      type: 'number',
+      description: '桌面歌词框透明度（0.3–1，默认 0.92）。',
+    },
+    lyricX: {
+      type: 'number',
+      description: '歌词框左边距像素（省略/重置时回到默认位置）。',
+    },
+    lyricY: {
+      type: 'number',
+      description: '歌词框上边距像素。',
+    },
+    lyricLocked: {
+      type: 'boolean',
+      description: '锁定歌词框：锁定后点击穿透，不会挡住界面。',
+    },
+    lyricReset: {
+      type: 'boolean',
+      description: '重置歌词框位置。',
     },
     title: {
       type: 'string',
@@ -181,6 +209,12 @@ export function apply(ctx, config) {
             offlineMode: input.offlineMode,
             localBaseUrl: input.localBaseUrl,
             localModel: input.localModel,
+            lyricFontSize: input.lyricFontSize,
+            lyricOpacity: input.lyricOpacity,
+            lyricX: input.lyricX,
+            lyricY: input.lyricY,
+            lyricLocked: input.lyricLocked,
+            lyricReset: input.lyricReset,
           })
           const state = controller.state(0)
           return { ok: true, summary: summarize(state) }
@@ -219,8 +253,23 @@ export function apply(ctx, config) {
           const result = await controller.stop()
           return { ok: result.ok !== false, summary: `已停止。\n\n${summarize(controller.state(0))}` }
         }
-        if (action === 'minutes') {
-          const result = await controller.generateMinutes({ title: input.title })
+        if (action === 'records') {
+          const sessions = controller.listSessions()
+          const sessionId = typeof input.session === 'string' && input.session !== '' ? input.session : sessions[0]?.id
+          if (sessionId === undefined) {
+            return { ok: true, summary: '还没有任何字幕记录。' }
+          }
+          const records = controller.readRecords(sessionId).entries ?? []
+          const head = records.slice(0, 30).map((row) => `[${row.time || '--:--:--'}] ${row.text}${row.translation && row.translation !== row.text ? `\n           ${row.translation}` : ''}`)
+          const lines = [
+            `会话 ${sessionId}：共 ${records.length} 条记录`,
+            `历史会话：${sessions.map((entry) => `${entry.id}(${entry.entries})`).slice(0, 8).join('、') || '无'}`,
+            records.length > 30 ? `（仅显示前 30 条，完整内容见记录页面）` : '',
+            ...head,
+          ].filter(Boolean)
+          return { ok: true, summary: lines.join('\n'), path: `~/.dsh/meeting-captions/sessions/${sessionId}/transcript.jsonl` }
+        }
+        if (action === 'minutes') {          const result = await controller.generateMinutes({ title: input.title })
           return {
             ok: true,
             summary: `已生成会议纪要并保存到 ${result.path}`,

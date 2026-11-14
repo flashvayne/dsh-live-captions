@@ -33,6 +33,18 @@ window.__ModuleLoader__.load({
         'target': 'Target language',
         'tagSource': 'Source',
         'tagTarget': 'Translation',
+        'records': 'Records',
+        'recordsTitle': 'Caption records',
+        'recordsEmpty': 'No records yet.',
+        'recordsPick': 'Session',
+        'copyAll': 'Copy all',
+        'fontSize': 'Size',
+        'opacity': 'Opacity',
+        'lock': 'Lock',
+        'unlock': 'Unlock',
+        'resetPos': 'Reset position',
+        'lockedHint': 'Locked: click-through, unlock from the panel.',
+        'dragHint': 'Drag to move',
         'lang.auto': 'Auto detect',
         'lang.zh': 'Chinese',
         'lang.en': 'English',
@@ -98,6 +110,18 @@ window.__ModuleLoader__.load({
         'target': '目标语言',
         'tagSource': '原文',
         'tagTarget': '译文',
+        'records': '记录',
+        'recordsTitle': '字幕记录',
+        'recordsEmpty': '还没有记录。',
+        'recordsPick': '会话',
+        'copyAll': '复制全部',
+        'fontSize': '字号',
+        'opacity': '透明度',
+        'lock': '锁定',
+        'unlock': '解锁',
+        'resetPos': '重置位置',
+        'lockedHint': '已锁定：可点击穿透，在面板里解锁。',
+        'dragHint': '拖动可移动',
         'lang.auto': '自动识别',
         'lang.zh': '中文',
         'lang.en': '英文',
@@ -184,18 +208,40 @@ window.__ModuleLoader__.load({
 
     const styles = `
 .mc-root{position:fixed;inset:0;pointer-events:none;font-family:inherit}
-.mc-captions{position:absolute;left:50%;bottom:172px;transform:translateX(-50%);width:min(860px,72vw);
-  display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
-.mc-caption{max-width:100%;padding:10px 16px;border-radius:12px;background:var(--dsw-alias-bg-overlay);
-  border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);text-align:center;
-  line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.12)}
-.mc-caption-card{display:flex;flex-direction:column;gap:6px;pointer-events:none}
 .mc-line{display:flex;align-items:baseline;gap:8px;text-align:left;max-width:100%}
 .mc-line-text{min-width:0;overflow-wrap:anywhere}
 .mc-line-source{font-size:16px;line-height:1.45;color:var(--dsw-alias-label-secondary)}
 .mc-line-target{font-size:19px;line-height:1.45;font-weight:600;color:var(--dsw-alias-label-primary)}
 .mc-tag{flex:0 0 auto;font-size:11px;line-height:1.7;padding:0 7px;border-radius:999px;
   border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.mc-lyric{position:fixed;z-index:5;min-width:300px;max-width:min(860px,72vw);pointer-events:auto;
+  display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;
+  border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);
+  box-shadow:0 10px 28px rgba(0,0,0,.18);cursor:grab;user-select:none}
+.mc-lyric:active{cursor:grabbing}
+.mc-lyric-locked{pointer-events:none;cursor:default;border-style:dashed}
+.mc-lyric-tools{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding-bottom:6px;
+  border-bottom:1px solid var(--dsw-alias-border-l1);pointer-events:auto}
+.mc-lyric-tool{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;
+  min-width:26px;height:24px;padding:0 6px;border-radius:6px;border:1px solid transparent;
+  background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;cursor:pointer}
+.mc-lyric-tool:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l1)}
+.mc-lyric-tool:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-lyric-body{display:flex;flex-direction:column;gap:6px}
+.mc-lyric .mc-line-source{font-size:calc(var(--mc-lyric-size,22px) * 0.72)}
+.mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px)}
+.mc-records{position:fixed;inset:6vh 6vw;z-index:20;display:flex;flex-direction:column;
+  border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary);box-shadow:0 18px 48px rgba(0,0,0,.28);pointer-events:auto;overflow:hidden}
+.mc-records-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mc-records-title{font-size:15px;font-weight:600;flex:0 0 auto}
+.mc-records-list{flex:1 1 auto;overflow:auto;padding:8px 16px 16px;display:flex;flex-direction:column;gap:8px}
+.mc-record{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mc-record-time{flex:0 0 68px;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.mc-record-texts{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mc-record-src{font-size:13px;line-height:1.5;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.mc-record-tr{font-size:13.5px;line-height:1.5;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
 .mc-dock{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .mc-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;
   border-radius:19px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);
@@ -256,9 +302,10 @@ window.__ModuleLoader__.load({
   .mc-dock{bottom:184px}
 }
 @media (max-width:720px){
-  .mc-captions{width:88vw}
+  .mc-lyric{max-width:88vw;min-width:240px}
   .mc-panel{width:min(92vw,392px);max-height:min(58vh,480px)}
   .mc-primary-btn,.mc-ghost-btn{flex:1 1 auto}
+  .mc-records{inset:2vh 2vw}
 }
 `
 
@@ -419,6 +466,68 @@ window.__ModuleLoader__.load({
         }
       }, [state, t])
 
+      // Desktop-lyrics box state: drag position, records page data.
+      const [lyricPos, setLyricPos] = useState(null)
+      const [recordsOpen, setRecordsOpen] = useState(false)
+      const [recordsData, setRecordsData] = useState(null)
+      const dragRef = useRef(null)
+
+      const save = useCallback((patch) => command({ action: 'settings', settings: patch }), [command])
+
+      const loadRecords = useCallback(async (sessionId) => {
+        try {
+          const query = typeof sessionId === 'string' && sessionId !== '' ? `?session=${encodeURIComponent(sessionId)}` : ''
+          const response = await fetch(`${API}/records${query}`, { headers: { accept: 'application/json' } })
+          const payload = await response.json().catch(() => null)
+          if (payload?.ok) setRecordsData(payload)
+        } catch (error) {
+          setNotice(String(error?.message ?? error))
+        }
+      }, [])
+
+      const copyRecords = useCallback(async () => {
+        const rows = recordsData?.records?.entries ?? []
+        const text = rows
+          .map((row) => `[${row.time || '--:--:--'}] ${row.text}${row.translation && row.translation !== row.text ? `\n          ${row.translation}` : ''}`)
+          .join('\n')
+        if (text === '') return
+        try {
+          await navigator.clipboard.writeText(text)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1600)
+        } catch {
+          setNotice(t('copy'))
+        }
+      }, [recordsData, t])
+
+      const beginDrag = (event) => {
+        if (event.button !== 0) return
+        if (event.target?.closest?.('.mc-lyric-tools')) return
+        const rect = event.currentTarget.getBoundingClientRect()
+        dragRef.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top }
+        try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
+        event.preventDefault()
+      }
+
+      const moveDrag = (event) => {
+        const drag = dragRef.current
+        if (drag === null) return
+        const width = event.currentTarget?.offsetWidth ?? 320
+        const maxX = (window.innerWidth ?? 1200) - width - 8
+        const maxY = (window.innerHeight ?? 800) - 72
+        const x = Math.max(8, Math.min(maxX, event.clientX - drag.dx))
+        const y = Math.max(8, Math.min(maxY, event.clientY - drag.dy))
+        drag.x = x
+        drag.y = y
+        setLyricPos({ x, y })
+      }
+
+      const endDrag = () => {
+        const drag = dragRef.current
+        dragRef.current = null
+        if (drag !== null && typeof drag.x === 'number') save({ lyricX: drag.x, lyricY: drag.y })
+      }
+
       const status = state?.status ?? 'idle'
       const running = status === 'running' || status === 'starting'
       const preparing = status === 'preparing'
@@ -440,24 +549,119 @@ window.__ModuleLoader__.load({
       const progress = asr.progress ?? {}
       const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
 
+      const lyricX = lyricPos === null ? settings.lyricX : lyricPos.x
+      const lyricY = lyricPos === null ? settings.lyricY : lyricPos.y
+      const lyricLocked = settings.lyricLocked === true
+      const lyricStyle = {
+        '--mc-lyric-size': `${settings.lyricFontSize ?? 22}px`,
+        opacity: settings.lyricOpacity ?? 0.92,
+        ...(typeof lyricX !== 'number' || typeof lyricY !== 'number'
+          ? { left: '50%', bottom: '172px', transform: 'translateX(-50%)' }
+          : { left: `${lyricX}px`, top: `${lyricY}px` }),
+      }
+
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
 
-        running ? h('div', { className: 'mc-captions', key: 'captions', role: 'status', 'aria-live': 'polite' }, [
-          latest === null
-            ? h('div', { className: 'mc-caption', key: 'listening' }, t('listening'))
-            : h('div', { className: 'mc-caption mc-caption-card', key: 'card' }, [
-                h('div', { className: 'mc-line mc-line-source', key: 'source' }, [
+        running ? h('div', {
+          className: `mc-lyric${lyricLocked ? ' mc-lyric-locked' : ''}`,
+          key: 'lyric',
+          style: lyricStyle,
+          role: 'status',
+          'aria-live': 'polite',
+          title: lyricLocked ? t('lockedHint') : t('dragHint'),
+          onPointerDown: lyricLocked ? undefined : beginDrag,
+          onPointerMove: lyricLocked ? undefined : moveDrag,
+          onPointerUp: lyricLocked ? undefined : endDrag,
+        }, [
+          lyricLocked ? null : h('div', { className: 'mc-lyric-tools', key: 'tools' }, [
+            h('button', {
+              className: 'mc-lyric-tool', key: 'font-down', type: 'button',
+              title: t('fontSize'), 'aria-label': `${t('fontSize')} -`,
+              onClick: () => save({ lyricFontSize: (settings.lyricFontSize ?? 22) - 2 }),
+            }, 'A−'),
+            h('button', {
+              className: 'mc-lyric-tool', key: 'font-up', type: 'button',
+              title: t('fontSize'), 'aria-label': `${t('fontSize')} +`,
+              onClick: () => save({ lyricFontSize: (settings.lyricFontSize ?? 22) + 2 }),
+            }, 'A+'),
+            h('button', {
+              className: 'mc-lyric-tool', key: 'opacity-down', type: 'button',
+              title: t('opacity'), 'aria-label': `${t('opacity')} -`,
+              onClick: () => save({ lyricOpacity: (settings.lyricOpacity ?? 0.92) - 0.08 }),
+            }, '◐−'),
+            h('button', {
+              className: 'mc-lyric-tool', key: 'opacity-up', type: 'button',
+              title: t('opacity'), 'aria-label': `${t('opacity')} +`,
+              onClick: () => save({ lyricOpacity: (settings.lyricOpacity ?? 0.92) + 0.08 }),
+            }, '◐+'),
+            h('button', {
+              className: 'mc-lyric-tool', key: 'toggle-source', type: 'button',
+              title: t('tagSource'), 'aria-pressed': settings.lyricShowSource !== false,
+              onClick: () => save({ lyricShowSource: settings.lyricShowSource === false }),
+            }, settings.lyricShowSource === false ? '原文✕' : '原文✓'),
+            h('button', {
+              className: 'mc-lyric-tool', key: 'lock', type: 'button',
+              title: t('lock'), 'aria-label': t('lock'),
+              onClick: () => save({ lyricLocked: true }),
+            }, '🔒'),
+            h('button', {
+              className: 'mc-lyric-tool', key: 'reset-pos', type: 'button',
+              title: t('resetPos'), 'aria-label': t('resetPos'),
+              onClick: () => { setLyricPos(null); save({ lyricReset: true }) },
+            }, '⟲'),
+          ]),
+          h('div', { className: 'mc-lyric-body', key: 'body' }, [
+            latest === null
+              ? h('div', { className: 'mc-line mc-line-source', key: 'listening' }, t('listening'))
+              : (settings.lyricShowSource === false ? null : h('div', { className: 'mc-line mc-line-source', key: 'source' }, [
                   h('span', { className: 'mc-tag', key: 'tag' }, t('tagSource')),
                   h('span', { className: 'mc-line-text', key: 'text' }, latest.text),
-                ]),
-                showTarget
-                  ? h('div', { className: 'mc-line mc-line-target', key: 'target' }, [
-                      h('span', { className: 'mc-tag', key: 'tag' }, t('tagTarget')),
-                      h('span', { className: 'mc-line-text', key: 'text' }, latest.translation ?? '…'),
-                    ])
-                  : null,
-              ]),
+                ])),
+            latest !== null && showTarget
+              ? h('div', { className: 'mc-line mc-line-target', key: 'target' }, [
+                  h('span', { className: 'mc-tag', key: 'tag' }, t('tagTarget')),
+                  h('span', { className: 'mc-line-text', key: 'text' }, latest.translation ?? '…'),
+                ])
+              : null,
+          ]),
+        ]) : null,
+
+        recordsOpen ? h('section', {
+          className: 'mc-records', key: 'records', role: 'dialog', 'aria-label': t('recordsTitle'),
+        }, [
+          h('header', { className: 'mc-records-head', key: 'head' }, [
+            h('span', { className: 'mc-records-title', key: 'title' }, t('recordsTitle')),
+            h('select', {
+              className: 'mc-select', key: 'pick',
+              style: { flex: '1 1 auto', maxWidth: '280px' },
+              value: recordsData?.sessionId ?? '',
+              'aria-label': t('recordsPick'),
+              onChange: (event) => { void loadRecords(event.target.value) },
+            }, (recordsData?.sessions ?? []).map((session) => h('option', { key: session.id, value: session.id },
+              `${session.id}${session.entries ? ` · ${session.entries}` : ''}`))),
+            h('button', {
+              className: 'mc-ghost-btn', key: 'copy', type: 'button',
+              disabled: (recordsData?.records?.entries ?? []).length === 0,
+              onClick: copyRecords,
+            }, copied ? t('copied') : t('copyAll')),
+            h('button', {
+              className: 'mc-icon-btn', key: 'close', type: 'button',
+              onClick: () => setRecordsOpen(false), 'aria-label': t('close'), title: t('close'),
+            }, '×'),
+          ]),
+          h('div', { className: 'mc-records-list', key: 'list' },
+            (recordsData?.records?.entries ?? []).length === 0
+              ? h('div', { className: 'mc-empty', key: 'empty' }, t('recordsEmpty'))
+              : recordsData.records.entries.map((row) => h('div', { className: 'mc-record', key: row.seq }, [
+                  h('span', { className: 'mc-record-time', key: 'time' }, row.time || '--:--:--'),
+                  h('div', { className: 'mc-record-texts', key: 'texts' }, [
+                    h('span', { className: 'mc-record-src', key: 'src' }, row.text),
+                    row.translation && row.translation !== row.text
+                      ? h('span', { className: 'mc-record-tr', key: 'tr' }, row.translation)
+                      : null,
+                  ]),
+                ]))),
         ]) : null,
 
         h('div', { className: 'mc-dock', key: 'dock' }, [
@@ -603,6 +807,23 @@ window.__ModuleLoader__.load({
               settings.offlineMode === true
                 ? h('div', { className: 'mc-hint', key: 'offline-hint' }, t('offlineOn'))
                 : null,
+
+              h('div', { className: 'mc-row', key: 'lyric-tools' }, [
+                h('button', {
+                  className: 'mc-ghost-btn', key: 'records', type: 'button',
+                  onClick: () => { setRecordsOpen(true); void loadRecords() },
+                }, t('records')),
+                h('button', {
+                  className: 'mc-ghost-btn', key: 'lyric-lock', type: 'button',
+                  onClick: () => save({ lyricLocked: !lyricLocked }),
+                }, lyricLocked ? t('unlock') : t('lock')),
+                h('button', {
+                  className: 'mc-ghost-btn', key: 'lyric-reset', type: 'button',
+                  onClick: () => { setLyricPos(null); save({ lyricReset: true }) },
+                }, t('resetPos')),
+              ]),
+
+              lyricLocked ? h('div', { className: 'mc-hint', key: 'locked-hint' }, t('lockedHint')) : null,
 
               (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready'
                 ? h('div', { className: 'mc-hint', key: 'mt-status' },
