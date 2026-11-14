@@ -1,0 +1,25 @@
+- insert:
+    # Local speech recognition (SenseVoiceSmall + Silero VAD) on this machine.
+    # These rows come from the dsh installation, so the bundle declares no
+    # dependency on them. Do not also enable the shipped "Voice Input" bundle:
+    # both rows register the same speech service and the second one fails.
+    - id: meeting-captions-stt
+      name: '@deepseek-ai/dsh-experimental-speech-to-text'
+      config:
+        defaultProvider: sensevoice-local
+    - id: meeting-captions-sensevoice
+      name: '@deepseek-ai/dsh-experimental-speech-to-text-sensevoice'
+      config:
+        dataRoot: !!js dshHomePath('speech-to-text', 'sensevoice')
+        threads: 6
+        segmentSeconds: 8
+    - id: meeting-captions
+      name: '@local/meeting-captions'
+      config:
+        dataRoot: !!js dshHomePath('meeting-captions')
+        segmentSeconds: 4
+        minSegmentSeconds: 1.2
+        source: both
+        sourceLanguage: auto
+        targetLanguage: zh
+        translate: true

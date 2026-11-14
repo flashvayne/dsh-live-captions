@@ -1,0 +1,567 @@
+window.__ModuleLoader__.load({
+  id: '@local/meeting-captions',
+  factory(require) {
+    const React = require('react')
+    const { useCallback, useEffect, useRef, useState } = React
+    const h = React.createElement
+
+    const NS = 'meeting-captions'
+    const API = '/meeting-captions/api'
+
+    const DICT = {
+      en: {
+        'title': 'Live captions',
+        'subtitle': 'Speaker + microphone to subtitles and minutes',
+        'start': 'Start',
+        'stop': 'Stop',
+        'prepare': 'Download model',
+        'downloadModel': 'Download model (≈240 MB)',
+        'firstRunHint': 'The first run downloads about 240 MB of recognition models. Speech is recognised on this machine; audio is never uploaded.',
+        'preparing': 'Preparing model',
+        'minutes': 'Minutes',
+        'generating': 'Writing minutes…',
+        'clear': 'Clear',
+        'copy': 'Copy',
+        'copied': 'Copied',
+        'close': 'Close',
+        'open': 'Open live captions',
+        'source': 'Audio source',
+        'source.both': 'System audio + mic',
+        'source.speaker': 'System audio',
+        'source.mic': 'Microphone',
+        'spoken': 'Spoken language',
+        'target': 'Subtitle language',
+        'lang.auto': 'Auto detect',
+        'lang.zh': 'Chinese',
+        'lang.en': 'English',
+        'lang.yue': 'Cantonese',
+        'lang.ja': 'Japanese',
+        'lang.ko': 'Korean',
+        'lang.es': 'Spanish',
+        'lang.fr': 'French',
+        'lang.de': 'German',
+        'lang.ru': 'Russian',
+        'lang.pt': 'Portuguese',
+        'translate': 'Translate',
+        'listening': 'Listening…',
+        'noCaptions': 'Captions appear here as people speak.',
+        'transcript': 'Transcript',
+        'emptyTranscript': 'Nothing recognised yet.',
+        'status.idle': 'Idle',
+        'status.preparing': 'Preparing model',
+        'status.starting': 'Starting capture',
+        'status.running': 'Capturing',
+        'status.stopping': 'Stopping',
+        'status.error': 'Error',
+        'minutesEmpty': 'Generate a summary when the meeting ends.',
+        'minutesPath': 'File',
+        'segments': 'segments',
+        'lines': 'lines',
+        'translationFailed': 'Translation failed',
+      },
+      zh: {
+        'title': '实时字幕',
+        'subtitle': '系统声音与麦克风实时转写、翻译并生成纪要',
+        'start': '开始',
+        'stop': '停止',
+        'prepare': '下载识别模型',
+        'downloadModel': '下载识别模型（约 240 MB）',
+        'firstRunHint': '首次使用需要下载约 240 MB 的识别模型；语音在本机识别，音频不会上传。',
+        'preparing': '正在准备模型',
+        'minutes': '生成纪要',
+        'generating': '正在生成纪要…',
+        'clear': '清空',
+        'copy': '复制',
+        'copied': '已复制',
+        'close': '关闭',
+        'open': '打开实时字幕',
+        'source': '音频来源',
+        'source.both': '系统声音 + 麦克风',
+        'source.speaker': '系统声音',
+        'source.mic': '麦克风',
+        'spoken': '识别语言',
+        'target': '字幕语言',
+        'lang.auto': '自动识别',
+        'lang.zh': '中文',
+        'lang.en': '英文',
+        'lang.yue': '粤语',
+        'lang.ja': '日文',
+        'lang.ko': '韩文',
+        'lang.es': '西班牙文',
+        'lang.fr': '法文',
+        'lang.de': '德文',
+        'lang.ru': '俄文',
+        'lang.pt': '葡萄牙文',
+        'translate': '翻译字幕',
+        'listening': '正在聆听…',
+        'noCaptions': '有人说话时字幕会显示在这里。',
+        'transcript': '转写记录',
+        'emptyTranscript': '还没有识别到内容。',
+        'status.idle': '未运行',
+        'status.preparing': '准备模型中',
+        'status.starting': '正在启动',
+        'status.running': '正在采集',
+        'status.stopping': '正在停止',
+        'status.error': '出错',
+        'minutesEmpty': '会议结束后可以一键生成纪要。',
+        'minutesPath': '文件',
+        'segments': '段音频',
+        'lines': '条字幕',
+        'translationFailed': '翻译失败',
+      },
+    }
+
+    const TARGET_LANGUAGES = ['zh', 'en', 'ja', 'ko', 'yue', 'es', 'fr', 'de', 'ru', 'pt']
+    const SOURCE_LANGUAGES = ['auto', 'zh', 'en', 'yue', 'ja', 'ko']
+
+    function localeId(ctx) {
+      try {
+        const snapshot = ctx.locale.getLocale()
+        const id = snapshot?.active ?? snapshot?.id ?? snapshot?.locale ?? 'en'
+        return String(id).toLowerCase().startsWith('zh') ? 'zh' : 'en'
+      } catch {
+        return 'en'
+      }
+    }
+
+    function useLanguage(ctx) {
+      const [id, setId] = useState(() => localeId(ctx))
+      useEffect(() => {
+        const update = () => setId(localeId(ctx))
+        update()
+        let dispose = () => {}
+        try {
+          dispose = ctx.locale.subscribe(update) ?? (() => {})
+        } catch {
+          // locale service unavailable: keep the initial id
+        }
+        return () => { try { dispose() } catch { /* ignore */ } }
+      }, [ctx])
+      return id
+    }
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    }
+
+    function statusColor(status) {
+      if (status === 'running') return 'var(--dsw-alias-state-success-primary)'
+      if (status === 'error') return 'var(--dsw-alias-state-error-primary)'
+      if (status === 'preparing' || status === 'starting') return 'var(--dsw-alias-state-warn-primary)'
+      return 'var(--dsw-alias-state-idle-primary)'
+    }
+
+    const styles = `
+.mc-root{position:fixed;inset:0;pointer-events:none;font-family:inherit}
+.mc-captions{position:absolute;left:50%;bottom:172px;transform:translateX(-50%);width:min(860px,72vw);
+  display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+.mc-caption{max-width:100%;padding:10px 16px;border-radius:12px;background:var(--dsw-alias-bg-overlay);
+  border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);text-align:center;
+  line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.mc-caption-primary{font-size:19px;font-weight:600}
+.mc-caption-secondary{font-size:14px;color:var(--dsw-alias-label-secondary);opacity:.85}
+.mc-dock{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.mc-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;
+  border-radius:19px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);
+  color:var(--dsw-alias-label-primary);font-size:13px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+.mc-pill:hover{border-color:var(--dsw-alias-border-l2)}
+.mc-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.mc-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.mc-panel{pointer-events:auto;width:392px;max-height:min(68vh,600px);display:flex;flex-direction:column;
+  border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary);overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.mc-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mc-head-title{font-size:14px;font-weight:600;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-icon-btn{pointer-events:auto;border:0;background:transparent;color:var(--dsw-alias-label-secondary);
+  cursor:pointer;font-size:16px;line-height:1;padding:4px 6px;border-radius:6px}
+.mc-icon-btn:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.mc-icon-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-body{padding:12px 14px;display:flex;flex-direction:column;gap:10px;overflow:auto}
+.mc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mc-status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.mc-primary-btn{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--dsw-alias-label-primary);
+  background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base);font-size:13px;cursor:pointer;font-weight:500}
+.mc-primary-btn:hover:not([disabled]){opacity:.88}
+.mc-primary-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.mc-primary-btn[disabled]{opacity:.55;cursor:not-allowed}
+.mc-ghost-btn{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);
+  background:transparent;color:var(--dsw-alias-label-primary);font-size:13px;cursor:pointer}
+.mc-ghost-btn:hover:not([disabled]){border-color:var(--dsw-alias-border-l2)}
+.mc-ghost-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.mc-ghost-btn[disabled]{opacity:.5;cursor:not-allowed}
+.mc-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dsw-alias-label-secondary);flex:1 1 0;min-width:0}
+.mc-select{pointer-events:auto;height:30px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 6px;width:100%}
+.mc-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-progress{height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
+.mc-progress > span{display:block;height:100%;background:var(--dsw-alias-brand-primary);transition:width .3s}
+.mc-hint{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.5;overflow-wrap:anywhere}
+.mc-error{font-size:12px;color:var(--dsw-alias-state-error-primary);line-height:1.5;overflow-wrap:anywhere}
+.mc-warn{font-size:12px;color:var(--dsw-alias-state-warn-primary);line-height:1.5;overflow-wrap:anywhere}
+.mc-section-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);display:flex;gap:8px;align-items:center;justify-content:space-between}
+.mc-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;padding-right:2px}
+.mc-item{display:flex;flex-direction:column;gap:2px;border-left:2px solid var(--dsw-alias-border-l1);padding-left:8px}
+.mc-item-translated{border-left-color:var(--dsw-alias-brand-primary)}
+.mc-item-time{font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.mc-item-text{font-size:13px;line-height:1.45;color:var(--dsw-alias-label-secondary)}
+.mc-item-tr{font-size:13.5px;line-height:1.45;color:var(--dsw-alias-label-primary)}
+.mc-item-live{opacity:.72}
+.mc-minutes{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12.5px;line-height:1.55;
+  margin:0;padding:10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);max-height:240px;overflow:auto;
+  color:var(--dsw-alias-label-primary)}
+.mc-empty{font-size:12px;color:var(--dsw-alias-label-secondary)}
+@media (max-width:1100px){
+  .mc-dock{bottom:184px}
+}
+@media (max-width:720px){
+  .mc-captions{width:88vw}
+  .mc-panel{width:min(92vw,392px);max-height:min(58vh,480px)}
+  .mc-primary-btn,.mc-ghost-btn{flex:1 1 auto}
+}
+`
+
+    function Overlay(props) {
+      const { ctx } = props
+      const lang = useLanguage(ctx)
+      const dict = DICT[lang] ?? DICT.en
+      const t = useCallback((key) => dict[key] ?? DICT.en[key] ?? key, [dict])
+
+      const [state, setState] = useState(null)
+      const [entries, setEntries] = useState([])
+      const [open, setOpen] = useState(false)
+      const [busy, setBusy] = useState('')
+      const [notice, setNotice] = useState('')
+      const [copied, setCopied] = useState(false)
+      const sinceRef = useRef(0)
+      const sessionRef = useRef(null)
+      const aliveRef = useRef(true)
+      const listRef = useRef(null)
+
+      // Keep the transcript pinned to the newest line unless the reader scrolled up.
+      useEffect(() => {
+        const list = listRef.current
+        if (list === null || entries.length === 0) return
+        const distance = list.scrollHeight - list.scrollTop - list.clientHeight
+        if (distance < 96) list.scrollTop = list.scrollHeight
+      }, [entries.length])
+
+      useEffect(() => {
+        if (!open) return undefined
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') setOpen(false)
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+      }, [open])
+
+      const applyState = useCallback((next) => {
+        if (!next) return
+        const sessionId = next.session?.id ?? null
+        if (sessionRef.current !== sessionId) {
+          sessionRef.current = sessionId
+          sinceRef.current = 0
+          setEntries([])
+        }
+        const fresh = Array.isArray(next.entries) ? next.entries : []
+        const touched = Array.isArray(next.recent) ? next.recent : []
+        if (fresh.length > 0 || touched.length > 0) {
+          if (fresh.length > 0) {
+            const maxSeq = fresh.reduce((top, entry) => Math.max(top, entry.seq), 0)
+            sinceRef.current = Math.max(sinceRef.current, maxSeq)
+          }
+          setEntries((previous) => {
+            const merged = new Map(previous.map((entry) => [entry.seq, entry]))
+            for (const entry of fresh) merged.set(entry.seq, entry)
+            for (const entry of touched) merged.set(entry.seq, { ...merged.get(entry.seq), ...entry })
+            return [...merged.values()].sort((a, b) => a.seq - b.seq).slice(-300)
+          })
+        }
+        setState(next)
+      }, [])
+
+      const reset = useCallback(() => {
+        sinceRef.current = 0
+        sessionRef.current = null
+        setEntries([])
+      }, [])
+
+      useEffect(() => {
+        aliveRef.current = true
+        let timer = null
+        const tick = async () => {
+          if (!aliveRef.current) return
+          let delay = 1200
+          try {
+            const response = await fetch(`${API}/state?since=${sinceRef.current}`, { headers: { accept: 'application/json' } })
+            if (response.ok) {
+              const payload = await response.json()
+              if (aliveRef.current && payload?.ok) {
+                applyState(payload.state)
+                if (payload.state?.status === 'running') delay = 400
+                else if (payload.state?.status === 'preparing' || payload.state?.status === 'starting') delay = 1200
+                else delay = 4000
+              }
+            } else {
+              delay = 5000
+            }
+          } catch {
+            delay = 5000
+          }
+          if (aliveRef.current) timer = setTimeout(tick, delay)
+        }
+        void tick()
+        return () => {
+          aliveRef.current = false
+          if (timer !== null) clearTimeout(timer)
+        }
+      }, [applyState])
+
+      const command = useCallback(async (body) => {
+        setBusy(body.action)
+        setNotice('')
+        try {
+          const response = await fetch(`${API}/command`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ...body, since: sinceRef.current }),
+          })
+          const payload = await response.json().catch(() => ({}))
+          if (!response.ok || payload?.ok === false) {
+            setNotice(payload?.error ?? `请求失败（${response.status}）`)
+          } else {
+            if (body.action === 'clear') reset()
+            if (payload.state) applyState(payload.state)
+          }
+          return payload
+        } catch (error) {
+          setNotice(String(error?.message ?? error))
+          return null
+        } finally {
+          setBusy('')
+        }
+      }, [applyState, reset])
+
+      const copyMinutes = useCallback(async () => {
+        const text = state?.minutes?.text ?? ''
+        if (text === '') return
+        try {
+          await navigator.clipboard.writeText(text)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1600)
+        } catch {
+          setNotice(t('copy'))
+        }
+      }, [state, t])
+
+      const status = state?.status ?? 'idle'
+      const running = status === 'running' || status === 'starting'
+      const preparing = status === 'preparing'
+      const asr = state?.asr ?? { available: false, phase: 'unavailable' }
+      const modelReady = asr.phase === 'ready' || asr.phase === 'standby'
+      const asrBusy = ['downloading', 'loading', 'waking', 'checking', 'cancelling'].includes(asr.phase)
+      const latest = entries.length > 0 ? entries[entries.length - 1] : null
+      const previous = entries.length > 1 ? entries[entries.length - 2] : null
+      const settings = state?.settings ?? { source: 'both', sourceLanguage: 'auto', targetLanguage: 'zh', translate: true }
+      const minutes = state?.minutes ?? { generating: false, text: '', path: null, error: null }
+
+      const captionPrimary = latest === null ? null : (latest.translation || latest.text)
+      const captionSecondary = latest === null || latest.translation === null || latest.translation === latest.text
+        ? null
+        : latest.text
+      const progress = asr.progress ?? {}
+      const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
+
+      return h('div', { className: 'mc-root' }, [
+        h('style', { key: 'style' }, styles),
+
+        running ? h('div', { className: 'mc-captions', key: 'captions', role: 'status', 'aria-live': 'polite' }, [
+          captionPrimary
+            ? h('div', { className: 'mc-caption mc-caption-primary', key: 'primary' }, captionPrimary)
+            : h('div', { className: 'mc-caption mc-caption-secondary', key: 'primary' }, t('listening')),
+          previous ? h('div', { className: 'mc-caption mc-caption-secondary', key: 'previous', style: { opacity: 0.6 } },
+            previous.translation || previous.text) : null,
+        ]) : null,
+
+        h('div', { className: 'mc-dock', key: 'dock' }, [
+          open ? h('section', {
+            className: 'mc-panel',
+            key: 'panel',
+            role: 'dialog',
+            'aria-label': t('title'),
+          }, [
+            h('header', { className: 'mc-head', key: 'head' }, [
+              h('span', { className: 'mc-dot', key: 'dot', style: { background: statusColor(status) } }),
+              h('span', { className: 'mc-head-title', key: 'title' }, t('title')),
+              h('button', {
+                className: 'mc-icon-btn', key: 'close', type: 'button',
+                onClick: () => setOpen(false), 'aria-label': t('close'), title: t('close'),
+              }, '×'),
+            ]),
+
+            h('div', { className: 'mc-body', key: 'body' }, [
+              h('div', { className: 'mc-status', key: 'status' },
+                `${asrBusy && !running ? t('preparing') : t(`status.${status}`)}${asr.message ? ` · ${asr.message}` : ''}`),
+
+              h('div', { className: 'mc-row', key: 'actions' }, [
+                running || preparing
+                  ? h('button', {
+                      className: 'mc-ghost-btn', key: 'stop', type: 'button',
+                      disabled: busy !== '',
+                      onClick: () => command({ action: 'stop' }),
+                    }, t('stop'))
+                  : modelReady
+                    ? h('button', {
+                        className: 'mc-primary-btn', key: 'start', type: 'button',
+                        disabled: busy !== '' || !asr.available,
+                        onClick: () => command({ action: 'start' }),
+                      }, t('start'))
+                    : h('button', {
+                        className: 'mc-primary-btn', key: 'download', type: 'button',
+                        disabled: busy !== '' || !asr.available || asrBusy,
+                        onClick: () => command({ action: 'prepare' }),
+                      }, asrBusy ? t('preparing') : t('downloadModel')),
+                h('button', {
+                  className: 'mc-ghost-btn', key: 'minutes', type: 'button',
+                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0,
+                  onClick: () => command({ action: 'minutes' }),
+                }, minutes.generating ? t('generating') : t('minutes')),
+                h('button', {
+                  className: 'mc-ghost-btn', key: 'clear', type: 'button',
+                  disabled: busy !== '' || entries.length === 0,
+                  onClick: () => command({ action: 'clear' }),
+                }, t('clear')),
+              ]),
+
+              asrBusy && percent !== null
+                ? h('div', {
+                    className: 'mc-progress', key: 'progress',
+                    role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent,
+                  }, h('span', { style: { width: `${percent}%` } }))
+                : null,
+              asrBusy && percent === null
+                ? h('div', { className: 'mc-hint', key: 'hint' }, `${t('preparing')} · ${formatBytes(progress.completedBytes)}`)
+                : null,
+              !modelReady && !asrBusy && asr.available
+                ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))
+                : null,
+              asr.available === false
+                ? h('div', { className: 'mc-error', key: 'asr-missing', role: 'alert' }, asr.message ?? '')
+                : null,
+
+              h('div', { className: 'mc-row', key: 'fields' }, [
+                h('label', { className: 'mc-field', key: 'source' }, [
+                  h('span', { key: 'label' }, t('source')),
+                  h('select', {
+                    className: 'mc-select', key: 'select', value: settings.source,
+                    onChange: (event) => command({ action: 'settings', settings: { source: event.target.value } }),
+                  }, [
+                    h('option', { key: 'both', value: 'both' }, t('source.both')),
+                    h('option', { key: 'speaker', value: 'speaker' }, t('source.speaker')),
+                    h('option', { key: 'mic', value: 'mic' }, t('source.mic')),
+                  ]),
+                ]),
+                h('label', { className: 'mc-field', key: 'spoken' }, [
+                  h('span', { key: 'label' }, t('spoken')),
+                  h('select', {
+                    className: 'mc-select', key: 'select', value: settings.sourceLanguage,
+                    onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
+                  }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
+                ]),
+              ]),
+
+              h('div', { className: 'mc-row', key: 'fields2' }, [
+                h('label', { className: 'mc-field', key: 'target' }, [
+                  h('span', { key: 'label' }, t('target')),
+                  h('select', {
+                    className: 'mc-select', key: 'select', value: settings.targetLanguage,
+                    onChange: (event) => command({ action: 'settings', settings: { targetLanguage: event.target.value } }),
+                  }, TARGET_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
+                ]),
+                h('label', { className: 'mc-field', key: 'translate', style: { flex: '0 0 auto' } }, [
+                  h('span', { key: 'label' }, t('translate')),
+                  h('input', {
+                    key: 'checkbox', type: 'checkbox', checked: settings.translate !== false,
+                    onChange: (event) => command({ action: 'settings', settings: { translate: event.target.checked } }),
+                  }),
+                ]),
+              ]),
+
+              state?.error ? h('div', { className: 'mc-error', key: 'error', role: 'alert' }, state.error) : null,
+              notice ? h('div', { className: 'mc-error', key: 'notice', role: 'alert' }, notice) : null,
+              (state?.warnings ?? []).map((warning, index) =>
+                h('div', { className: 'mc-warn', key: `warn-${index}` }, warning)),
+              state?.translationError ? h('div', { className: 'mc-error', key: 'tr-error' }, `${t('translationFailed')}: ${state.translationError}`) : null,
+
+              h('div', { className: 'mc-section-title', key: 'tr-title' }, [
+                h('span', { key: 'left' }, `${t('transcript')}${state?.totalEntries ? ` · ${state.totalEntries} ${t('lines')}` : ''}`),
+                state?.session ? h('span', { key: 'right', style: { fontVariantNumeric: 'tabular-nums' } },
+                  `${state.session.segments} ${t('segments')}`) : null,
+              ]),
+
+              entries.length === 0
+                ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
+                : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
+                    h('div', { className: `mc-item${entry.translation ? ' mc-item-translated' : ''}`, key: entry.seq }, [
+                      h('span', { className: 'mc-item-time', key: 'time' }, entry.at),
+                      h('span', { className: 'mc-item-text', key: 'text' }, entry.text),
+                      entry.translation ? h('span', {
+                        className: `mc-item-tr${entry.live ? ' mc-item-live' : ''}`,
+                        key: 'tr',
+                      }, entry.translation) : null,
+                      entry.translationFailed ? h('span', { className: 'mc-item-time', key: 'fail' }, t('translationFailed')) : null,
+                    ]))),
+
+              h('div', { className: 'mc-section-title', key: 'minutes-title' }, [
+                h('span', { key: 'left' }, t('minutes')),
+                minutes.text
+                  ? h('button', {
+                      className: 'mc-icon-btn', key: 'copy', type: 'button',
+                      onClick: copyMinutes, title: t('copy'),
+                    }, copied ? t('copied') : t('copy'))
+                  : null,
+              ]),
+
+              minutes.text
+                ? h('pre', { className: 'mc-minutes', key: 'minutes' }, minutes.text)
+                : h('div', { className: 'mc-empty', key: 'minutes-empty' }, t('minutesEmpty')),
+
+              minutes.error ? h('div', { className: 'mc-error', key: 'minutes-error' }, minutes.error) : null,
+              minutes.path ? h('div', { className: 'mc-hint', key: 'minutes-path', title: minutes.path }, `${t('minutesPath')}: ${minutes.path}`) : null,
+            ]),
+          ]) : null,
+
+          h('button', {
+            className: 'mc-pill', key: 'pill', type: 'button',
+            onClick: () => setOpen((value) => !value),
+            'aria-expanded': open,
+            'aria-label': t('open'),
+            title: t('open'),
+          }, [
+            h('span', { className: 'mc-dot', key: 'dot', style: { background: statusColor(status) } }),
+            h('span', { key: 'label' }, t('title')),
+          ]),
+        ]),
+      ])
+    }
+
+    return {
+      inject: ['slots', 'locale'],
+      apply(ctx) {
+        try {
+          ctx.effect(() => ctx.locale.register(NS, DICT), 'meeting-captions: locale')
+        } catch (error) {
+          console.warn('[meeting-captions] locale registration failed', error)
+        }
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
+          id: 'meeting-captions',
+          order: 40,
+          label: () => (localeId(ctx) === 'zh' ? '实时字幕' : 'Live captions'),
+        }, (props) => h(Overlay, { ...props, ctx })))
+      },
+    }
+  },
+})

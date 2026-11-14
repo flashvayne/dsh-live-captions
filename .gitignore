@@ -1,0 +1,16 @@
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+
+# 运行时产物（插件写在 ~/.dsh 下，这里只是防止误提交）
+*.log
+sessions/
+minutes/
+models/
+
+# 编辑器与系统文件
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
