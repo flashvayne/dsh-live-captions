@@ -47,9 +47,6 @@ window.__ModuleLoader__.load({
         'dragHint': 'Drag to move',
         'resize': 'Resize',
         'backToLive': 'Back to live',
-        'sentenceLines': 'Visible sentences',
-        'lineOne': '1 sentence',
-        'lineTwo': '2 sentences',
         'lang.auto': 'Auto detect',
         'lang.zh': 'Chinese',
         'lang.en': 'English',
@@ -129,9 +126,6 @@ window.__ModuleLoader__.load({
         'dragHint': '拖动可移动',
         'resize': '调整大小',
         'backToLive': '回到最新',
-        'sentenceLines': '显示句数',
-        'lineOne': '1 句',
-        'lineTwo': '2 句',
         'lang.auto': '自动识别',
         'lang.zh': '中文',
         'lang.en': '英文',
@@ -222,10 +216,8 @@ window.__ModuleLoader__.load({
 .mc-line-text{min-width:0;overflow-wrap:anywhere}
 .mc-line-source{font-size:16px;line-height:1.45;color:var(--dsw-alias-label-secondary)}
 .mc-line-target{font-size:19px;line-height:1.45;font-weight:600;color:var(--dsw-alias-label-primary)}
-.mc-tag{flex:0 0 auto;font-size:11px;line-height:1.7;padding:0 7px;border-radius:999px;
-  border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);white-space:nowrap}
 .mc-lyric{position:fixed;z-index:5;min-width:260px;max-width:min(880px,86vw);pointer-events:auto;
-  display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;overflow:auto;
+  display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;overflow:hidden;
   border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);
   box-shadow:0 10px 28px rgba(0,0,0,.18);cursor:grab;user-select:none}
 .mc-lyric:active{cursor:grabbing}
@@ -237,12 +229,15 @@ window.__ModuleLoader__.load({
   background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;cursor:pointer}
 .mc-lyric-tool:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l1)}
 .mc-lyric-tool:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.mc-lyric-tool-on{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}
-.mc-lyric-body{display:flex;flex-direction:column;gap:8px;min-height:0}
-.mc-lyric-entry{display:flex;flex-direction:column;gap:3px;padding-bottom:6px;border-bottom:1px dashed var(--dsw-alias-border-l1)}
+.mc-lyric-body{display:flex;flex-direction:column;gap:12px;min-height:0;flex:1 1 auto;
+  overflow-y:auto;overflow-x:hidden;padding-right:4px;overscroll-behavior:contain}
+.mc-lyric-entry{display:flex;flex-direction:column;gap:3px;padding-bottom:8px;
+  border-bottom:1px dashed var(--dsw-alias-border-l1)}
 .mc-lyric-entry:last-child{border-bottom:0;padding-bottom:0}
-.mc-lyric .mc-line-source{font-size:calc(var(--mc-lyric-size,22px) * 0.72);line-height:1.4;color:var(--dsw-alias-label-secondary)}
-.mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px);font-weight:600}
+.mc-lyric .mc-line-source{font-size:calc(var(--mc-lyric-size,22px) * 0.72);line-height:1.4;
+  color:var(--dsw-alias-label-secondary);opacity:.85}
+.mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px);line-height:1.45;font-weight:600;
+  color:var(--dsw-alias-label-primary)}
 .mc-lyric-resize{position:absolute;right:1px;bottom:1px;width:14px;height:14px;cursor:nwse-resize;
   pointer-events:auto;border-bottom-right-radius:12px;background:
   linear-gradient(135deg,transparent 46%,var(--dsw-alias-border-l2) 46%,var(--dsw-alias-border-l2) 58%,transparent 58%)}
@@ -264,11 +259,8 @@ window.__ModuleLoader__.load({
 .mc-record-texts{display:flex;flex-direction:column;gap:3px;min-width:0}
 .mc-record-src{font-size:13px;line-height:1.5;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
 .mc-record-tr{font-size:13.5px;line-height:1.5;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
-.mc-record-time{flex:0 0 68px;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary);
-  font-variant-numeric:tabular-nums;white-space:nowrap}
-.mc-record-texts{display:flex;flex-direction:column;gap:3px;min-width:0}
-.mc-record-src{font-size:13px;line-height:1.5;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
-.mc-record-tr{font-size:13.5px;line-height:1.5;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.mc-records-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:8px 14px;border-top:1px solid var(--dsw-alias-border-l1);flex:0 0 auto}
 .mc-dock{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .mc-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;
   border-radius:19px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);
@@ -358,30 +350,6 @@ window.__ModuleLoader__.load({
           if (event.key === 'Escape') setDraft(value ?? '')
         },
       })
-    }
-
-    /** Which entries the lyric box shows for a given history anchor. */
-    function lyricWindow(entries, anchorSeq, lineCount) {
-      const endIndex = (() => {
-        if (anchorSeq === null) return entries.length
-        const found = entries.findIndex((entry) => entry.seq === anchorSeq)
-        return found < 0 ? entries.length : found + 1
-      })()
-      return {
-        endIndex,
-        visible: entries.slice(Math.max(0, endIndex - lineCount), endIndex),
-        inHistory: anchorSeq !== null && endIndex < entries.length,
-      }
-    }
-
-    /** New anchor after one wheel step: +1 newer, -1 older, null = live. */
-    function nextAnchor(entries, anchorSeq, delta) {
-      if (entries.length === 0) return null
-      const current = anchorSeq === null
-        ? entries.length
-        : Math.max(1, Math.min(entries.length, (entries.findIndex((entry) => entry.seq === anchorSeq) + 1) || entries.length))
-      const next = Math.max(1, Math.min(entries.length, current + delta))
-      return next >= entries.length ? null : entries[next - 1].seq
     }
 
     function Overlay(props) {
@@ -517,19 +485,20 @@ window.__ModuleLoader__.load({
         }
       }, [state, t])
 
-      // Desktop-lyrics box state: drag position, size, history anchor, records window.
+      // Desktop-lyrics box state: drag position, size, scroll follow, records window.
       const [lyricPos, setLyricPos] = useState(null)
       const [lyricSize, setLyricSize] = useState(null)
-      const [anchorSeq, setAnchorSeq] = useState(null)
+      const [pinned, setPinned] = useState(true)
       const [recordsOpen, setRecordsOpen] = useState(false)
       const [recordsData, setRecordsData] = useState(null)
       const [recordsGeom, setRecordsGeom] = useState(null)
       const lyricRef = useRef(null)
+      const lyricBodyRef = useRef(null)
+      const pinnedRef = useRef(true)
       const dragRef = useRef(null)
       const resizeRef = useRef(null)
       const recordsMoveRef = useRef(null)
       const recordsGrowRef = useRef(null)
-      const wheelHandlerRef = useRef(null)
 
       const save = useCallback((patch) => command({ action: 'settings', settings: patch }), [command])
 
@@ -561,7 +530,7 @@ window.__ModuleLoader__.load({
 
       const beginDrag = (event) => {
         if (event.button !== 0) return
-        if (event.target?.closest?.('.mc-lyric-tools') || event.target?.closest?.('.mc-lyric-resize')) return
+        if (event.target?.closest?.('button, select, input, textarea, a, .mc-lyric-tools, .mc-lyric-resize')) return
         const rect = event.currentTarget.getBoundingClientRect()
         dragRef.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top }
         try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
@@ -615,12 +584,22 @@ window.__ModuleLoader__.load({
         if (resize !== null) save({ lyricW: Math.round(resize.w), lyricH: Math.round(resize.h) })
       }
 
-      // Wheel walks back through history; the anchor is a sequence number, so the
-      // view stays put while new lines keep arriving.
-      const scrollLyric = (delta) => {
-        setAnchorSeq(nextAnchor(entries, anchorSeq, delta))
+      /** Follow the newest line unless the reader scrolled up inside the box. */
+      const onLyricScroll = () => {
+        const body = lyricBodyRef.current
+        if (body === null) return
+        const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 24
+        pinnedRef.current = atBottom
+        setPinned(atBottom)
       }
-      wheelHandlerRef.current = scrollLyric
+
+      const scrollToLatest = () => {
+        const body = lyricBodyRef.current
+        if (body === null) return
+        pinnedRef.current = true
+        setPinned(true)
+        body.scrollTop = body.scrollHeight
+      }
 
       const recordsGeometry = () => recordsGeom ?? {
         x: typeof settings.recordsX === 'number' ? settings.recordsX : Math.max(16, Math.round((window.innerWidth ?? 1200) / 2 - 210)),
@@ -631,6 +610,9 @@ window.__ModuleLoader__.load({
 
       const beginRecordsMove = (event) => {
         if (event.button !== 0) return
+        // Never start a drag from a control: pointer capture on the header would
+        // swallow the button's click, which is exactly how close stopped working.
+        if (event.target?.closest?.('button, select, input, textarea, a, .mc-records-list, .mc-window-resize, .mc-records-foot')) return
         const geometry = recordsGeometry()
         recordsMoveRef.current = { dx: event.clientX - geometry.x, dy: event.clientY - geometry.y }
         try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
@@ -693,51 +675,48 @@ window.__ModuleLoader__.load({
         ? Math.min(100, Math.round((mt.progress.loaded / mt.progress.total) * 100))
         : null
 
-      // The box shows `lyricLines` entries ending at the anchor (null = live).
-      const lineCount = settings.lyricLines === 2 ? 2 : 1
-      const { endIndex, visible: visibleEntries, inHistory } = lyricWindow(entries, anchorSeq, lineCount)
       const progress = asr.progress ?? {}
       const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
 
+      // A stored position or size may come from another monitor, so both windows
+      // are clamped fully inside the current viewport — otherwise a title bar
+      // (and its close button) can end up off-screen.
+      const viewportW = window.innerWidth ?? 1200
+      const viewportH = window.innerHeight ?? 800
+      const clampX = (value, width) => Math.max(8, Math.min(viewportW - width - 8, value))
+      const clampY = (value, height) => Math.max(8, Math.min(viewportH - height - 8, value))
       const lyricX = lyricPos === null ? settings.lyricX : lyricPos.x
       const lyricY = lyricPos === null ? settings.lyricY : lyricPos.y
-      const lyricW = lyricSize === null ? settings.lyricW : lyricSize.w
-      const lyricH = lyricSize === null ? settings.lyricH : lyricSize.h
+      const lyricW = Math.min(lyricSize === null ? (settings.lyricW ?? 560) : lyricSize.w, viewportW - 16)
+      const lyricH = Math.min(lyricSize === null ? (settings.lyricH ?? 220) : lyricSize.h, viewportH - 16)
       const lyricLocked = settings.lyricLocked === true
-      // A stored position may be outside the current window (monitor change),
-      // so clamp it into view instead of rendering off-screen.
-      const clampX = (value) => Math.max(8, Math.min((window.innerWidth ?? 1200) - 120, value))
-      const clampY = (value) => Math.max(8, Math.min((window.innerHeight ?? 800) - 60, value))
       const lyricStyle = {
         '--mc-lyric-size': `${settings.lyricFontSize ?? 22}px`,
         opacity: settings.lyricOpacity ?? 0.92,
-        ...(typeof lyricW === 'number' ? { width: `${Math.min(lyricW, (window.innerWidth ?? 1200) - 16)}px` } : {}),
-        ...(typeof lyricH === 'number' ? { height: `${Math.min(lyricH, (window.innerHeight ?? 800) - 16)}px` } : {}),
+        width: `${lyricW}px`,
+        height: `${lyricH}px`,
         ...(typeof lyricX !== 'number' || typeof lyricY !== 'number'
           ? { left: '50%', bottom: '172px', transform: 'translateX(-50%)' }
-          : { left: `${clampX(lyricX)}px`, top: `${clampY(lyricY)}px` }),
+          : { left: `${clampX(lyricX, lyricW)}px`, top: `${clampY(lyricY, lyricH)}px` }),
       }
       const recordsStyle = (() => {
         const geometry = recordsGeometry()
+        const width = Math.min(geometry.w, viewportW - 24)
+        const height = Math.min(geometry.h, viewportH - 24)
         return {
-          left: `${clampX(geometry.x)}px`,
-          top: `${clampY(geometry.y)}px`,
-          width: `${Math.min(geometry.w, (window.innerWidth ?? 1200) - 24)}px`,
-          height: `${Math.min(geometry.h, (window.innerHeight ?? 800) - 24)}px`,
+          left: `${clampX(geometry.x, width)}px`,
+          top: `${clampY(geometry.y, height)}px`,
+          width: `${width}px`,
+          height: `${height}px`,
         }
       })()
 
-      // Native listener so the box owns the wheel instead of scrolling the app.
+      // Keep the viewport pinned to the newest line while the reader stays at the bottom.
       useEffect(() => {
-        const element = lyricRef.current
-        if (element === null) return undefined
-        const onWheel = (event) => {
-          event.preventDefault()
-          wheelHandlerRef.current?.(event.deltaY > 0 ? 1 : -1)
-        }
-        element.addEventListener('wheel', onWheel, { passive: false })
-        return () => element.removeEventListener('wheel', onWheel)
-      }, [running])
+        const body = lyricBodyRef.current
+        if (body === null || !pinnedRef.current) return
+        body.scrollTop = body.scrollHeight
+      }, [entries.length, entries.length > 0 ? entries[entries.length - 1].translation : null])
 
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
@@ -754,11 +733,11 @@ window.__ModuleLoader__.load({
           onPointerMove: lyricLocked ? undefined : moveDrag,
           onPointerUp: lyricLocked ? undefined : endDrag,
         }, [
-          !lyricLocked && inHistory
+          !lyricLocked && !pinned
             ? h('button', {
                 className: 'mc-lyric-badge', key: 'history', type: 'button',
-                onClick: () => setAnchorSeq(null), title: t('backToLive'),
-              }, `${t('backToLive')} · −${entries.length - endIndex}`)
+                onClick: scrollToLatest, title: t('backToLive'),
+              }, `↓ ${t('backToLive')}`)
             : null,
           lyricLocked ? null : h('div', { className: 'mc-lyric-tools', key: 'tools' }, [
             h('button', {
@@ -782,11 +761,6 @@ window.__ModuleLoader__.load({
               onClick: () => save({ lyricOpacity: (settings.lyricOpacity ?? 0.92) + 0.08 }),
             }, '◐+'),
             h('button', {
-              className: `mc-lyric-tool${lineCount === 2 ? ' mc-lyric-tool-on' : ''}`, key: 'lines', type: 'button',
-              title: t('sentenceLines'), 'aria-label': t('sentenceLines'),
-              onClick: () => save({ lyricLines: lineCount === 2 ? 1 : 2 }),
-            }, lineCount === 2 ? t('lineTwo') : t('lineOne')),
-            h('button', {
               className: 'mc-lyric-tool', key: 'toggle-source', type: 'button',
               title: t('tagSource'), 'aria-pressed': settings.lyricShowSource !== false,
               onClick: () => save({ lyricShowSource: settings.lyricShowSource === false }),
@@ -802,22 +776,21 @@ window.__ModuleLoader__.load({
               onClick: () => { setLyricPos(null); setLyricSize(null); save({ lyricReset: true }) },
             }, '⟲'),
           ]),
-          h('div', { className: 'mc-lyric-body', key: 'body' },
-            visibleEntries.length === 0
+          h('div', {
+            className: 'mc-lyric-body', key: 'body',
+            ref: lyricBodyRef, onScroll: onLyricScroll,
+          },
+            entries.length === 0
               ? h('div', { className: 'mc-line mc-line-source', key: 'listening' }, t('listening'))
-              : visibleEntries.map((entry) => h('div', { className: 'mc-lyric-entry', key: entry.seq }, [
+              : entries.slice(-60).map((entry) => h('div', { className: 'mc-lyric-entry', key: entry.seq }, [
                   settings.lyricShowSource === false
                     ? null
-                    : h('div', { className: 'mc-line mc-line-source', key: 'source' }, [
-                        h('span', { className: 'mc-tag', key: 'tag' }, t('tagSource')),
-                        h('span', { className: 'mc-line-text', key: 'text' }, entry.text),
-                      ]),
+                    : h('div', { className: 'mc-line mc-line-source', key: 'source' },
+                        h('span', { className: 'mc-line-text', key: 'text' }, entry.text)),
                   settings.translate === false || (entry.translation !== null && entry.translation === entry.text)
                     ? null
-                    : h('div', { className: 'mc-line mc-line-target', key: 'target' }, [
-                        h('span', { className: 'mc-tag', key: 'tag' }, t('tagTarget')),
-                        h('span', { className: 'mc-line-text', key: 'text' }, entry.translation ?? '…'),
-                      ]),
+                    : h('div', { className: 'mc-line mc-line-target', key: 'target' },
+                        h('span', { className: 'mc-line-text', key: 'text' }, entry.translation ?? '…')),
                 ]))),
           lyricLocked ? null : h('div', {
             className: 'mc-lyric-resize', key: 'resize', title: t('resize'),
@@ -847,11 +820,6 @@ window.__ModuleLoader__.load({
             }, (recordsData?.sessions ?? []).map((session) => h('option', { key: session.id, value: session.id },
               `${session.id}${session.entries ? ` · ${session.entries}` : ''}`))),
             h('button', {
-              className: 'mc-icon-btn', key: 'copy', type: 'button',
-              disabled: (recordsData?.records?.entries ?? []).length === 0,
-              onClick: copyRecords, title: copied ? t('copied') : t('copyAll'),
-            }, copied ? '✓' : '⧉'),
-            h('button', {
               className: 'mc-icon-btn', key: 'close', type: 'button',
               onClick: () => setRecordsOpen(false), 'aria-label': t('close'), title: t('close'),
             }, '×'),
@@ -868,6 +836,15 @@ window.__ModuleLoader__.load({
                       : null,
                   ]),
                 ]))),
+          h('div', { className: 'mc-records-foot', key: 'foot' }, [
+            h('span', { className: 'mc-hint', key: 'count' },
+              `${(recordsData?.records?.entries ?? []).length} ${t('lines')}`),
+            h('button', {
+              className: 'mc-ghost-btn', key: 'copy', type: 'button',
+              disabled: (recordsData?.records?.entries ?? []).length === 0,
+              onClick: copyRecords,
+            }, copied ? t('copied') : t('copyAll')),
+          ]),
           h('div', {
             className: 'mc-window-resize', key: 'resize', title: t('resize'),
             onPointerDown: beginRecordsResize,
@@ -1146,7 +1123,6 @@ window.__ModuleLoader__.load({
 
     return {
       inject: ['slots', 'locale'],
-      __test: { lyricWindow, nextAnchor },
       apply(ctx) {
         try {
           ctx.effect(() => ctx.locale.register(NS, DICT), 'meeting-captions: locale')

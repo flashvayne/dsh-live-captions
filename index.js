@@ -116,11 +116,6 @@ const TOOL_PARAMETERS = {
       type: 'number',
       description: '歌词框高度像素（70 起）。',
     },
-    lyricLines: {
-      type: 'number',
-      enum: [1, 2],
-      description: '歌词框显示几句（1 或 2）。',
-    },
     recordsX: {
       type: 'number',
       description: '记录弹窗左边距像素。',
@@ -244,7 +239,6 @@ export function apply(ctx, config) {
             lyricY: input.lyricY,
             lyricW: input.lyricW,
             lyricH: input.lyricH,
-            lyricLines: input.lyricLines,
             lyricLocked: input.lyricLocked,
             lyricReset: input.lyricReset,
             recordsX: input.recordsX,

@@ -85,28 +85,6 @@ if (tree === null || tree === undefined) throw new Error('overlay rendered nothi
 if (typeof tree.type === 'function') tree = tree.type(tree.props)
 if (tree.props?.className !== 'mc-root') throw new Error('overlay root element missing')
 
-// Lyric history window maths.
-const { lyricWindow, nextAnchor } = plugin.__test ?? {}
-if (lyricWindow === undefined || nextAnchor === undefined) throw new Error('lyric helpers missing')
-const entries = [1, 2, 3, 4, 5].map((seq) => ({ seq, text: `line ${seq}`, translation: null }))
-const seqs = (list) => list.map((entry) => entry.seq).join(',')
-
-const live1 = lyricWindow(entries, null, 1)
-if (seqs(live1.visible) !== '5' || live1.inHistory) throw new Error(`live window wrong: ${seqs(live1.visible)}`)
-const live2 = lyricWindow(entries, null, 2)
-if (seqs(live2.visible) !== '4,5') throw new Error(`two-line live window wrong: ${seqs(live2.visible)}`)
-const history = lyricWindow(entries, 3, 2)
-if (seqs(history.visible) !== '2,3' || !history.inHistory) throw new Error(`history window wrong: ${seqs(history.visible)}`)
-const pinnedLatest = lyricWindow(entries, 5, 1)
-if (seqs(pinnedLatest.visible) !== '5' || pinnedLatest.inHistory) throw new Error('anchor at latest should be live')
-
-if (nextAnchor(entries, null, -1) !== 4) throw new Error('wheel up from live should go to seq 4')
-if (nextAnchor(entries, 4, -1) !== 3) throw new Error('wheel up should step back')
-if (nextAnchor(entries, 3, 1) !== 4) throw new Error('wheel down should step forward')
-if (nextAnchor(entries, 4, 1) !== null) throw new Error('wheel down at the end should return to live')
-if (nextAnchor(entries, null, 1) !== null) throw new Error('live + newer stays live')
-if (nextAnchor([], null, -1) !== null) throw new Error('empty list stays live')
-
 for (const { label, disposer } of recorded.effects) {
   if (typeof disposer !== 'function') throw new Error(`effect ${label} has no disposer`)
   disposer()
@@ -116,4 +94,3 @@ console.log('client bundle: OK')
 console.log(`  slot: ${recorded.slot.id} order ${recorded.slot.order}`)
 console.log(`  locale ns: ${recorded.locale.ns}, dictionary keys checked: ${keys.size}`)
 console.log('  render: root tree built, effects disposable')
-console.log('  lyric window: live/history/anchor maths verified')
