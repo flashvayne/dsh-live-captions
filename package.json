@@ -2,12 +2,27 @@
   "name": "@local/meeting-captions",
   "version": "1.0.0",
   "private": true,
+  "description": "DeepSeek Harness plugin: live multilingual subtitles from system audio and the microphone, with local SenseVoice transcription, cloud / built-in / self-hosted translation, and meeting minutes.",
   "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "subtitles",
+    "captions",
+    "speech-to-text",
+    "translation",
+    "meeting-minutes",
+    "sensevoice"
+  ],
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "files": [
     "index.js",
@@ -19,8 +34,12 @@
     "README.md",
     "icon.svg"
   ],
-  "dependencies": {
+  "optionalDependencies": {
     "@huggingface/transformers": "^3.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "dsh": {
     "bundle": {
