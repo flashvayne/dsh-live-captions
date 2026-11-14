@@ -23,3 +23,7 @@
         sourceLanguage: auto
         targetLanguage: zh
         translate: true
+        # cloud = profile 的云端默认模型；local = 本机 OpenAI 兼容服务
+        translateEngine: cloud
+        localBaseUrl: http://127.0.0.1:11434/v1
+        localModel: ''

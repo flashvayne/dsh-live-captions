@@ -43,6 +43,13 @@ window.__ModuleLoader__.load({
         'lang.ru': 'Russian',
         'lang.pt': 'Portuguese',
         'translate': 'Translate',
+        'engine': 'Translation engine',
+        'engine.cloud': 'Cloud model',
+        'engine.local': 'Local model',
+        'localUrl': 'Endpoint',
+        'localModel': 'Model',
+        'localHint': 'Ollama: http://127.0.0.1:11434/v1 · LM Studio: http://127.0.0.1:1234/v1',
+        'engineLocalNote': 'The local model translates subtitles only; minutes still use the cloud model.',
         'listening': 'Listening…',
         'noCaptions': 'Captions appear here as people speak.',
         'transcript': 'Transcript',
@@ -93,6 +100,13 @@ window.__ModuleLoader__.load({
         'lang.ru': '俄文',
         'lang.pt': '葡萄牙文',
         'translate': '翻译字幕',
+        'engine': '翻译引擎',
+        'engine.cloud': '云端默认模型',
+        'engine.local': '本地模型',
+        'localUrl': '服务地址',
+        'localModel': '模型名',
+        'localHint': 'Ollama：http://127.0.0.1:11434/v1 · LM Studio：http://127.0.0.1:1234/v1',
+        'engineLocalNote': '本地模型只负责字幕翻译；会议纪要仍然使用云端模型。',
         'listening': '正在聆听…',
         'noCaptions': '有人说话时字幕会显示在这里。',
         'transcript': '转写记录',
@@ -196,6 +210,10 @@ window.__ModuleLoader__.load({
 .mc-select{pointer-events:auto;height:30px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);
   background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 6px;width:100%}
 .mc-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-input{pointer-events:auto;height:30px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 8px;
+  width:100%;box-sizing:border-box}
+.mc-input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .mc-progress{height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
 .mc-progress > span{display:block;height:100%;background:var(--dsw-alias-brand-primary);transition:width .3s}
 .mc-hint{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.5;overflow-wrap:anywhere}
@@ -222,6 +240,30 @@ window.__ModuleLoader__.load({
   .mc-primary-btn,.mc-ghost-btn{flex:1 1 auto}
 }
 `
+
+    function TextField(props) {
+      const { value, placeholder, onCommit, ariaLabel } = props
+      const [draft, setDraft] = useState(value ?? '')
+      useEffect(() => {
+        setDraft(value ?? '')
+      }, [value])
+      return h('input', {
+        className: 'mc-input',
+        type: 'text',
+        value: draft,
+        placeholder,
+        'aria-label': ariaLabel,
+        onChange: (event) => setDraft(event.target.value),
+        onBlur: () => {
+          const next = draft.trim()
+          if (next !== (value ?? '')) onCommit(next)
+        },
+        onKeyDown: (event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+          if (event.key === 'Escape') setDraft(value ?? '')
+        },
+      })
+    }
 
     function Overlay(props) {
       const { ctx } = props
@@ -489,7 +531,52 @@ window.__ModuleLoader__.load({
                 ]),
               ]),
 
-              state?.error ? h('div', { className: 'mc-error', key: 'error', role: 'alert' }, state.error) : null,
+              h('div', { className: 'mc-row', key: 'engine' }, [
+                h('label', { className: 'mc-field', key: 'engine-select' }, [
+                  h('span', { key: 'label' }, t('engine')),
+                  h('select', {
+                    className: 'mc-select', key: 'select',
+                    value: settings.translateEngine === 'local' ? 'local' : 'cloud',
+                    onChange: (event) => command({ action: 'settings', settings: { translateEngine: event.target.value } }),
+                  }, [
+                    h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
+                    h('option', { key: 'local', value: 'local' }, t('engine.local')),
+                  ]),
+                ]),
+              ]),
+
+              settings.translateEngine === 'local'
+                ? h('div', { className: 'mc-row', key: 'local-fields' }, [
+                    h('label', { className: 'mc-field', key: 'local-url' }, [
+                      h('span', { key: 'label' }, t('localUrl')),
+                      h(TextField, {
+                        key: 'input', value: settings.localBaseUrl ?? '',
+                        placeholder: 'http://127.0.0.1:11434/v1',
+                        ariaLabel: t('localUrl'),
+                        onCommit: (value) => command({ action: 'settings', settings: { localBaseUrl: value } }),
+                      }),
+                    ]),
+                    h('label', { className: 'mc-field', key: 'local-model' }, [
+                      h('span', { key: 'label' }, t('localModel')),
+                      h(TextField, {
+                        key: 'input', value: settings.localModel ?? '',
+                        placeholder: 'qwen2.5:7b',
+                        ariaLabel: t('localModel'),
+                        onCommit: (value) => command({ action: 'settings', settings: { localModel: value } }),
+                      }),
+                    ]),
+                  ])
+                : null,
+
+              settings.translateEngine === 'local'
+                ? h('div', { className: 'mc-hint', key: 'local-hint' }, t('localHint'))
+                : null,
+              settings.translateEngine === 'local'
+                ? h('div', { className: 'mc-hint', key: 'local-note' }, t('engineLocalNote'))
+                : null,
+              state?.engine?.label
+                ? h('div', { className: 'mc-hint', key: 'engine-label' }, state.engine.label)
+                : null,
               notice ? h('div', { className: 'mc-error', key: 'notice', role: 'alert' }, notice) : null,
               (state?.warnings ?? []).map((warning, index) =>
                 h('div', { className: 'mc-warn', key: `warn-${index}` }, warning)),

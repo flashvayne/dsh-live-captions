@@ -63,6 +63,19 @@ const TOOL_PARAMETERS = {
       type: 'boolean',
       description: '是否把字幕翻译成目标语言。',
     },
+    translateEngine: {
+      type: 'string',
+      enum: ['cloud', 'local'],
+      description: '翻译引擎：cloud=profile 的云端默认模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端模型。',
+    },
+    localBaseUrl: {
+      type: 'string',
+      description: '本地模型的 OpenAI 兼容地址，例如 http://127.0.0.1:11434/v1（Ollama）。',
+    },
+    localModel: {
+      type: 'string',
+      description: '本地模型名，例如 qwen2.5:7b（Ollama）或你加载的模型 id。',
+    },
     title: {
       type: 'string',
       description: '生成会议纪要时可选的会议标题。',
@@ -85,6 +98,7 @@ function summarize(state) {
   lines.push(`状态：${statusText}${state.error ? `（${state.error}）` : ''}`)
   lines.push(`识别：${state.asr.providerName ?? '未知'} / ${state.asr.phase}${state.asr.message ? `（${state.asr.message}）` : ''}`)
   lines.push(`来源：${state.settings.source}；识别语言：${state.settings.sourceLanguage}；字幕语言：${state.targetLabel}`)
+  lines.push(`翻译：${state.engine?.label ?? '未知'}（会议纪要固定用云端模型）`)
   if (state.session !== null) {
     lines.push(`本次：${state.session.segments} 段 / ${state.totalEntries} 条字幕`)
   }
@@ -150,6 +164,9 @@ export function apply(ctx, config) {
             sourceLanguage: input.sourceLanguage,
             targetLanguage: input.targetLanguage,
             translate: input.translate,
+            translateEngine: input.translateEngine,
+            localBaseUrl: input.localBaseUrl,
+            localModel: input.localModel,
           })
           const state = controller.state(0)
           return { ok: true, summary: summarize(state) }
@@ -163,12 +180,16 @@ export function apply(ctx, config) {
           return { ok: result.ok !== false, summary: result.ok === false ? `准备失败：${result.error}` : `已开始准备识别模型（${result.providerId}），可从面板查看进度。` }
         }
         if (action === 'start') {
-          if (input.source || input.targetLanguage || input.sourceLanguage || input.translate !== undefined) {
+          if (input.source || input.targetLanguage || input.sourceLanguage || input.translate !== undefined
+            || input.translateEngine || input.localBaseUrl || input.localModel) {
             controller.updateSettings({
               source: input.source,
               sourceLanguage: input.sourceLanguage,
               targetLanguage: input.targetLanguage,
               translate: input.translate,
+              translateEngine: input.translateEngine,
+              localBaseUrl: input.localBaseUrl,
+              localModel: input.localModel,
             })
           }
           const result = controller.start()
