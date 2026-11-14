@@ -53,7 +53,7 @@ const TOOL_PARAMETERS = {
     },
     sourceLanguage: {
       type: 'string',
-      description: '识别语言提示：auto/zh/en/yue/ja/ko。',
+      description: '源语言提示：auto/zh/en/yue/ja/ko；auto 表示自动判断。',
     },
     targetLanguage: {
       type: 'string',
@@ -101,7 +101,7 @@ function summarize(state) {
   }[state.status] ?? state.status
   lines.push(`状态：${statusText}${state.error ? `（${state.error}）` : ''}`)
   lines.push(`识别：${state.asr.providerName ?? '未知'} / ${state.asr.phase}${state.asr.message ? `（${state.asr.message}）` : ''}`)
-  lines.push(`来源：${state.settings.source}；识别语言：${state.settings.sourceLanguage}；字幕语言：${state.targetLabel}`)
+  lines.push(`来源：${state.settings.source}；源语言：${state.settings.sourceLanguage}；目标语言：${state.targetLabel}`)
   lines.push(`翻译：${state.engine?.label ?? '未知'}${state.offline ? '（离线模式，会议纪要不可用）' : '（会议纪要固定用云端模型）'}`)
   if (state.mt && state.mt.state !== 'ready' && (state.offline || state.settings.translateEngine === 'builtin')) {
     const progress = state.mt.progress ?? {}

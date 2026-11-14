@@ -29,8 +29,10 @@ window.__ModuleLoader__.load({
         'source.both': 'System audio + mic',
         'source.speaker': 'System audio',
         'source.mic': 'Microphone',
-        'spoken': 'Spoken language',
-        'target': 'Subtitle language',
+        'spoken': 'Source language',
+        'target': 'Target language',
+        'tagSource': 'Source',
+        'tagTarget': 'Translation',
         'lang.auto': 'Auto detect',
         'lang.zh': 'Chinese',
         'lang.en': 'English',
@@ -92,8 +94,10 @@ window.__ModuleLoader__.load({
         'source.both': '系统声音 + 麦克风',
         'source.speaker': '系统声音',
         'source.mic': '麦克风',
-        'spoken': '识别语言',
-        'target': '字幕语言',
+        'spoken': '源语言',
+        'target': '目标语言',
+        'tagSource': '原文',
+        'tagTarget': '译文',
         'lang.auto': '自动识别',
         'lang.zh': '中文',
         'lang.en': '英文',
@@ -185,8 +189,13 @@ window.__ModuleLoader__.load({
 .mc-caption{max-width:100%;padding:10px 16px;border-radius:12px;background:var(--dsw-alias-bg-overlay);
   border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);text-align:center;
   line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.12)}
-.mc-caption-primary{font-size:19px;font-weight:600}
-.mc-caption-secondary{font-size:14px;color:var(--dsw-alias-label-secondary);opacity:.85}
+.mc-caption-card{display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.mc-line{display:flex;align-items:baseline;gap:8px;text-align:left;max-width:100%}
+.mc-line-text{min-width:0;overflow-wrap:anywhere}
+.mc-line-source{font-size:16px;line-height:1.45;color:var(--dsw-alias-label-secondary)}
+.mc-line-target{font-size:19px;line-height:1.45;font-weight:600;color:var(--dsw-alias-label-primary)}
+.mc-tag{flex:0 0 auto;font-size:11px;line-height:1.7;padding:0 7px;border-radius:999px;
+  border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);white-space:nowrap}
 .mc-dock{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .mc-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;
   border-radius:19px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);
@@ -417,7 +426,6 @@ window.__ModuleLoader__.load({
       const modelReady = asr.phase === 'ready' || asr.phase === 'standby'
       const asrBusy = ['downloading', 'loading', 'waking', 'checking', 'cancelling'].includes(asr.phase)
       const latest = entries.length > 0 ? entries[entries.length - 1] : null
-      const previous = entries.length > 1 ? entries[entries.length - 2] : null
       const settings = state?.settings ?? { source: 'both', sourceLanguage: 'auto', targetLanguage: 'zh', translate: true }
       const minutes = state?.minutes ?? { generating: false, text: '', path: null, error: null }
       const mt = state?.mt ?? { state: 'idle', progress: {}, model: '', error: null }
@@ -425,10 +433,10 @@ window.__ModuleLoader__.load({
         ? Math.min(100, Math.round((mt.progress.loaded / mt.progress.total) * 100))
         : null
 
-      const captionPrimary = latest === null ? null : (latest.translation || latest.text)
-      const captionSecondary = latest === null || latest.translation === null || latest.translation === latest.text
-        ? null
-        : latest.text
+      // Two lines: the source sentence, then its translation into the target language.
+      const showTarget = latest !== null
+        && settings.translate !== false
+        && (latest.translation === null || latest.translation !== latest.text)
       const progress = asr.progress ?? {}
       const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
 
@@ -436,11 +444,20 @@ window.__ModuleLoader__.load({
         h('style', { key: 'style' }, styles),
 
         running ? h('div', { className: 'mc-captions', key: 'captions', role: 'status', 'aria-live': 'polite' }, [
-          captionPrimary
-            ? h('div', { className: 'mc-caption mc-caption-primary', key: 'primary' }, captionPrimary)
-            : h('div', { className: 'mc-caption mc-caption-secondary', key: 'primary' }, t('listening')),
-          previous ? h('div', { className: 'mc-caption mc-caption-secondary', key: 'previous', style: { opacity: 0.6 } },
-            previous.translation || previous.text) : null,
+          latest === null
+            ? h('div', { className: 'mc-caption', key: 'listening' }, t('listening'))
+            : h('div', { className: 'mc-caption mc-caption-card', key: 'card' }, [
+                h('div', { className: 'mc-line mc-line-source', key: 'source' }, [
+                  h('span', { className: 'mc-tag', key: 'tag' }, t('tagSource')),
+                  h('span', { className: 'mc-line-text', key: 'text' }, latest.text),
+                ]),
+                showTarget
+                  ? h('div', { className: 'mc-line mc-line-target', key: 'target' }, [
+                      h('span', { className: 'mc-tag', key: 'tag' }, t('tagTarget')),
+                      h('span', { className: 'mc-line-text', key: 'text' }, latest.translation ?? '…'),
+                    ])
+                  : null,
+              ]),
         ]) : null,
 
         h('div', { className: 'mc-dock', key: 'dock' }, [
