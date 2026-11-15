@@ -35,6 +35,7 @@ window.__ModuleLoader__.load({
         'tagSource': 'Source',
         'tagTarget': 'Translation',
         'records': 'Records',
+        'moreSettings': 'More options',
         'recordsTitle': 'Caption records',
         'recordsEmpty': 'No records yet.',
         'recordsPick': 'Session',
@@ -117,6 +118,7 @@ window.__ModuleLoader__.load({
         'tagSource': '原文',
         'tagTarget': '译文',
         'records': '记录',
+        'moreSettings': '更多设置',
         'recordsTitle': '字幕记录',
         'recordsEmpty': '还没有记录。',
         'recordsPick': '会话',
@@ -323,6 +325,12 @@ window.__ModuleLoader__.load({
   margin:0;padding:10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);max-height:240px;overflow:auto;
   color:var(--dsw-alias-label-primary)}
 .mc-empty{font-size:12px;color:var(--dsw-alias-label-secondary)}
+.mc-primary-btn-lg{height:42px;width:100%;font-size:15px;font-weight:600;border-radius:10px}
+.mc-disclosure{pointer-events:auto;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;
+  height:34px;margin-top:2px;border:0;border-top:1px solid var(--dsw-alias-border-l1);border-radius:0;
+  background:transparent;color:var(--dsw-alias-label-secondary);font-size:12.5px;cursor:pointer;user-select:none}
+.mc-disclosure:hover{color:var(--dsw-alias-label-primary)}
+.mc-advanced{display:flex;flex-direction:column;gap:10px;padding-top:4px}
 @media (max-width:1100px){
   .mc-dock{bottom:184px}
 }
@@ -368,6 +376,7 @@ window.__ModuleLoader__.load({
       const [entries, setEntries] = useState([])
       const [open, setOpen] = useState(false)
       const [recordsOpen, setRecordsOpen] = useState(false)
+      const [showAdvanced, setShowAdvanced] = useState(false)
       const [busy, setBusy] = useState('')
       const [notice, setNotice] = useState('')
       const [copied, setCopied] = useState(false)
@@ -882,83 +891,25 @@ window.__ModuleLoader__.load({
             ]),
 
             h('div', { className: 'mc-body', key: 'body' }, [
+
+              // One clear primary action.
+              running || preparing
+                ? h('button', {
+                    className: 'mc-primary-btn mc-primary-btn-lg', key: 'stop', type: 'button',
+                    disabled: busy !== '',
+                    onClick: () => command({ action: 'stop' }),
+                  }, t('stop'))
+                : h('button', {
+                    className: 'mc-primary-btn mc-primary-btn-lg', key: 'start', type: 'button',
+                    disabled: busy !== '' || !asr.available,
+                    onClick: () => command({ action: 'start' }),
+                  }, t('start')),
+
               h('div', { className: 'mc-status', key: 'status' },
                 `${asrBusy && !running ? t('preparing') : t(`status.${status}`)}${asr.message ? ` · ${asr.message}` : ''}`),
 
-              h('div', { className: 'mc-row', key: 'actions' }, [
-                running || preparing
-                  ? h('button', {
-                      className: 'mc-ghost-btn', key: 'stop', type: 'button',
-                      disabled: busy !== '',
-                      onClick: () => command({ action: 'stop' }),
-                    }, t('stop'))
-                  : h('button', {
-                      className: 'mc-primary-btn', key: 'start', type: 'button',
-                      disabled: busy !== '' || !asr.available,
-                      onClick: () => command({ action: 'start' }),
-                    }, t('start')),
-                h('button', {
-                  className: 'mc-ghost-btn', key: 'minutes', type: 'button',
-                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0 || settings.offlineMode === true,
-                  title: settings.offlineMode === true ? t('minutesUnavailable') : undefined,
-                  onClick: () => command({ action: 'minutes' }),
-                }, minutes.generating ? t('generating') : t('minutes')),
-                h('button', {
-                  className: 'mc-ghost-btn', key: 'clear', type: 'button',
-                  disabled: busy !== '' || entries.length === 0,
-                  onClick: () => {
-                    if (!clearArmed) {
-                      setClearArmed(true)
-                      clearTimeout(clearArmRef.current)
-                      clearArmRef.current = setTimeout(() => setClearArmed(false), 4000)
-                      return
-                    }
-                    clearTimeout(clearArmRef.current)
-                    clearArmRef.current = null
-                    setClearArmed(false)
-                    void command({ action: 'clear' })
-                  },
-                }, clearArmed ? t('confirmClear') : t('clear')),
-              ]),
-
-              asrBusy && percent !== null
-                ? h('div', {
-                    className: 'mc-progress', key: 'progress',
-                    role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent,
-                  }, h('span', { style: { width: `${percent}%` } }))
-                : null,
-              asrBusy && percent === null
-                ? h('div', { className: 'mc-hint', key: 'hint' }, `${t('preparing')} · ${formatBytes(progress.completedBytes)}`)
-                : null,
-              !modelReady && !asrBusy && asr.available
-                ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))
-                : null,
-              asr.available === false
-                ? h('div', { className: 'mc-error', key: 'asr-missing', role: 'alert' }, asr.message ?? '')
-                : null,
-
-              h('div', { className: 'mc-row', key: 'fields' }, [
-                h('label', { className: 'mc-field', key: 'source' }, [
-                  h('span', { key: 'label' }, t('source')),
-                  h('select', {
-                    className: 'mc-select', key: 'select', value: settings.source,
-                    onChange: (event) => command({ action: 'settings', settings: { source: event.target.value } }),
-                  }, [
-                    h('option', { key: 'both', value: 'both' }, t('source.both')),
-                    h('option', { key: 'speaker', value: 'speaker' }, t('source.speaker')),
-                    h('option', { key: 'mic', value: 'mic' }, t('source.mic')),
-                  ]),
-                ]),
-                h('label', { className: 'mc-field', key: 'spoken' }, [
-                  h('span', { key: 'label' }, t('spoken')),
-                  h('select', {
-                    className: 'mc-select', key: 'select', value: settings.sourceLanguage,
-                    onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
-                  }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
-                ]),
-              ]),
-
-              h('div', { className: 'mc-row', key: 'fields2' }, [
+              // The one choice most people touch: subtitle language + translate.
+              h('div', { className: 'mc-row', key: 'essential' }, [
                 h('label', { className: 'mc-field', key: 'target' }, [
                   h('span', { key: 'label' }, t('target')),
                   h('select', {
@@ -966,7 +917,7 @@ window.__ModuleLoader__.load({
                     onChange: (event) => command({ action: 'settings', settings: { targetLanguage: event.target.value } }),
                   }, TARGET_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
                 ]),
-                h('label', { className: 'mc-field', key: 'translate', style: { flex: '0 0 auto' } }, [
+                h('label', { className: 'mc-field', key: 'translate', style: { flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' } }, [
                   h('span', { key: 'label' }, t('translate')),
                   h('input', {
                     key: 'checkbox', type: 'checkbox', checked: settings.translate !== false,
@@ -975,138 +926,37 @@ window.__ModuleLoader__.load({
                 ]),
               ]),
 
-              h('div', { className: 'mc-row', key: 'engine' }, [
-                h('label', { className: 'mc-field', key: 'engine-select' }, [
-                  h('span', { key: 'label' }, t('engine')),
-                  h('select', {
-                    className: 'mc-select', key: 'select',
-                    value: settings.offlineMode === true
-                      ? 'builtin'
-                      : settings.translateEngine === 'local'
-                        ? 'local'
-                        : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
-                    disabled: settings.offlineMode === true,
-                    onChange: (event) => command({ action: 'settings', settings: { translateEngine: event.target.value } }),
-                  }, [
-                    h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
-                    h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
-                    h('option', { key: 'local', value: 'local' }, t('engine.local')),
-                  ]),
-                ]),
-                h('label', {
-                  className: 'mc-field', key: 'offline',
-                  style: { flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' },
-                }, [
-                  h('input', {
-                    key: 'checkbox', type: 'checkbox', checked: settings.offlineMode === true,
-                    onChange: (event) => command({
-                      action: 'settings',
-                      settings: event.target.checked
-                        ? { offlineMode: true, translateEngine: 'builtin' }
-                        : { offlineMode: false },
-                    }),
-                  }),
-                  h('span', { key: 'label' }, t('offline')),
-                ]),
+              // Secondary actions.
+              h('div', { className: 'mc-row', key: 'secondary' }, [
+                h('button', {
+                  className: 'mc-ghost-btn', key: 'minutes', type: 'button',
+                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0 || settings.offlineMode === true,
+                  title: settings.offlineMode === true ? t('minutesUnavailable') : undefined,
+                  onClick: () => command({ action: 'minutes' }),
+                }, minutes.generating ? t('generating') : t('minutes')),
+                h('button', {
+                  className: 'mc-ghost-btn', key: 'records-popup', type: 'button',
+                  title: t('recordsTitle'), 'aria-label': t('recordsTitle'),
+                  onClick: () => { setRecordsOpen((value) => !value); if (!recordsOpen) void loadRecords() },
+                }, `⧉ ${t('records')}`),
               ]),
 
-              settings.offlineMode === true
-                ? h('div', { className: 'mc-hint', key: 'offline-hint' }, t('offlineOn'))
-                : null,
-
-              h('div', { className: 'mc-row', key: 'lyric-tools' }, [
-                h('button', {
-                  className: 'mc-ghost-btn', key: 'lyric-lock', type: 'button',
-                  onClick: () => save({ lyricLocked: !lyricLocked }),
-                }, lyricLocked ? t('unlock') : t('lock')),
-                h('button', {
-                  className: 'mc-ghost-btn', key: 'lyric-reset', type: 'button',
-                  onClick: () => { setLyricPos(null); setLyricSize(null); save({ lyricReset: true }) },
-                }, t('resetPos')),
-              ]),
-
-              lyricLocked ? h('div', { className: 'mc-hint', key: 'locked-hint' }, t('lockedHint')) : null,
-
-              (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready'
-                ? h('div', { className: 'mc-row', key: 'mt-status' }, [
-                    h('div', { className: 'mc-hint', key: 'hint' },
-                      mt.installing
-                        ? (mt.installProgress?.message ?? t('mtPreparing'))
-                        : mt.state === 'failed'
-                          ? `${t('mtFailed')}：${mt.error ?? ''}`
-                          : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`),
-                    mt.missingDeps && !mt.installing
-                      ? h('button', {
-                          className: 'mc-ghost-btn', key: 'mt-install', type: 'button',
-                          onClick: () => command({ action: 'install_mt_deps' }),
-                        }, t('downloadDeps'))
-                      : null,
-                    mt.state === 'failed' && !mt.missingDeps && !mt.installing
-                      ? h('button', {
-                          className: 'mc-ghost-btn', key: 'mt-retry', type: 'button',
-                          onClick: () => save({ translateEngine: 'builtin' }),
-                        }, t('retry'))
-                      : null,
-                  ])
-                : null,
-              (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready' && mtPercent !== null
-                ? h('div', {
-                    className: 'mc-progress', key: 'mt-progress',
-                    role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
-                  }, h('span', { style: { width: `${mtPercent}%` } }))
-                : null,
-
-              settings.translateEngine === 'local'
-                ? h('div', { className: 'mc-row', key: 'local-fields' }, [
-                    h('label', { className: 'mc-field', key: 'local-url' }, [
-                      h('span', { key: 'label' }, t('localUrl')),
-                      h(TextField, {
-                        key: 'input', value: settings.localBaseUrl ?? '',
-                        placeholder: 'http://127.0.0.1:11434/v1',
-                        ariaLabel: t('localUrl'),
-                        onCommit: (value) => command({ action: 'settings', settings: { localBaseUrl: value } }),
-                      }),
-                    ]),
-                    h('label', { className: 'mc-field', key: 'local-model' }, [
-                      h('span', { key: 'label' }, t('localModel')),
-                      h(TextField, {
-                        key: 'input', value: settings.localModel ?? '',
-                        placeholder: 'qwen2.5:7b',
-                        ariaLabel: t('localModel'),
-                        onCommit: (value) => command({ action: 'settings', settings: { localModel: value } }),
-                      }),
-                    ]),
-                  ])
-                : null,
-
-              settings.translateEngine === 'local'
-                ? h('div', { className: 'mc-hint', key: 'local-hint' }, t('localHint'))
-                : null,
-              settings.translateEngine === 'local'
-                ? h('div', { className: 'mc-hint', key: 'local-note' }, t('engineLocalNote'))
-                : null,
-              state?.engine?.label
-                ? h('div', { className: 'mc-hint', key: 'engine-label' }, state.engine.label)
+              // Alerts that block usage stay visible.
+              asr.available === false
+                ? h('div', { className: 'mc-error', key: 'asr-missing', role: 'alert' }, asr.message ?? '')
                 : null,
               notice ? h('div', { className: 'mc-error', key: 'notice', role: 'alert' }, notice) : null,
+              state?.translationError ? h('div', { className: 'mc-error', key: 'tr-error' }, `${t('translationFailed')}: ${state.translationError}`) : null,
               (state?.warnings ?? []).map((warning, index) =>
                 h('div', { className: 'mc-warn', key: `warn-${index}` }, warning)),
-              state?.translationError ? h('div', { className: 'mc-error', key: 'tr-error' }, `${t('translationFailed')}: ${state.translationError}`) : null,
 
+              // Live transcript.
               h('div', { className: 'mc-section-title', key: 'tr-title' }, [
                 h('span', { key: 'left' }, `${t('transcript')}${state?.totalEntries ? ` · ${state.totalEntries} ${t('lines')}` : ''}`),
-                h('span', { key: 'right', style: { display: 'flex', alignItems: 'center', gap: '8px' } }, [
-                  state?.session
-                    ? h('span', { key: 'segments', style: { fontVariantNumeric: 'tabular-nums' } }, `${state.session.segments} ${t('segments')}`)
-                    : null,
-                  h('button', {
-                    className: 'mc-icon-btn', key: 'records-popup', type: 'button',
-                    title: t('recordsTitle'), 'aria-label': t('recordsTitle'),
-                    onClick: () => { setRecordsOpen((value) => !value); if (!recordsOpen) void loadRecords() },
-                  }, `⧉ ${t('records')}`),
-                ]),
+                state?.session
+                  ? h('span', { key: 'segments', style: { fontVariantNumeric: 'tabular-nums' } }, `${state.session.segments} ${t('segments')}`)
+                  : null,
               ]),
-
               entries.length === 0
                 ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
                 : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
@@ -1120,23 +970,193 @@ window.__ModuleLoader__.load({
                       entry.translationFailed ? h('span', { className: 'mc-item-time', key: 'fail' }, t('translationFailed')) : null,
                     ]))),
 
-              h('div', { className: 'mc-section-title', key: 'minutes-title' }, [
-                h('span', { key: 'left' }, t('minutes')),
-                minutes.text
-                  ? h('button', {
-                      className: 'mc-icon-btn', key: 'copy', type: 'button',
-                      onClick: copyMinutes, title: t('copy'),
-                    }, copied ? t('copied') : t('copy'))
-                  : null,
-              ]),
-
+              // Meeting minutes, only when there is a result.
               minutes.text
-                ? h('pre', { className: 'mc-minutes', key: 'minutes' }, minutes.text)
-                : h('div', { className: 'mc-empty', key: 'minutes-empty' },
-                    settings.offlineMode === true ? t('minutesUnavailable') : t('minutesEmpty')),
-
+                ? h('div', { key: 'minutes' }, [
+                    h('div', { className: 'mc-section-title', key: 'minutes-title' }, [
+                      h('span', { key: 'left' }, t('minutes')),
+                      h('button', { className: 'mc-icon-btn', key: 'copy', type: 'button', onClick: copyMinutes, title: t('copy') }, copied ? t('copied') : t('copy')),
+                    ]),
+                    h('pre', { className: 'mc-minutes', key: 'text' }, minutes.text),
+                  ])
+                : null,
               minutes.error ? h('div', { className: 'mc-error', key: 'minutes-error' }, minutes.error) : null,
               minutes.path ? h('div', { className: 'mc-hint', key: 'minutes-path', title: minutes.path }, `${t('minutesPath')}: ${minutes.path}`) : null,
+
+              // Everything else hides behind a single disclosure.
+              h('button', {
+                className: 'mc-disclosure', key: 'disclosure', type: 'button',
+                'aria-expanded': showAdvanced,
+                onClick: () => setShowAdvanced((value) => !value),
+              }, `${showAdvanced ? '▾' : '▸'} ${t('moreSettings')}`),
+
+              showAdvanced
+                ? h('div', { className: 'mc-advanced', key: 'advanced' }, [
+
+                    h('div', { className: 'mc-row', key: 'source-row' }, [
+                      h('label', { className: 'mc-field', key: 'source' }, [
+                        h('span', { key: 'label' }, t('source')),
+                        h('select', {
+                          className: 'mc-select', key: 'select', value: settings.source,
+                          onChange: (event) => command({ action: 'settings', settings: { source: event.target.value } }),
+                        }, [
+                          h('option', { key: 'both', value: 'both' }, t('source.both')),
+                          h('option', { key: 'speaker', value: 'speaker' }, t('source.speaker')),
+                          h('option', { key: 'mic', value: 'mic' }, t('source.mic')),
+                        ]),
+                      ]),
+                      h('label', { className: 'mc-field', key: 'spoken' }, [
+                        h('span', { key: 'label' }, t('spoken')),
+                        h('select', {
+                          className: 'mc-select', key: 'select', value: settings.sourceLanguage,
+                          onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
+                        }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
+                      ]),
+                    ]),
+
+                    h('div', { className: 'mc-row', key: 'engine-row' }, [
+                      h('label', { className: 'mc-field', key: 'engine-select' }, [
+                        h('span', { key: 'label' }, t('engine')),
+                        h('select', {
+                          className: 'mc-select', key: 'select',
+                          value: settings.offlineMode === true
+                            ? 'builtin'
+                            : settings.translateEngine === 'local'
+                              ? 'local'
+                              : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
+                          disabled: settings.offlineMode === true,
+                          onChange: (event) => command({ action: 'settings', settings: { translateEngine: event.target.value } }),
+                        }, [
+                          h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
+                          h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
+                          h('option', { key: 'local', value: 'local' }, t('engine.local')),
+                        ]),
+                      ]),
+                      h('label', {
+                        className: 'mc-field', key: 'offline',
+                        style: { flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' },
+                      }, [
+                        h('input', {
+                          key: 'checkbox', type: 'checkbox', checked: settings.offlineMode === true,
+                          onChange: (event) => command({
+                            action: 'settings',
+                            settings: event.target.checked
+                              ? { offlineMode: true, translateEngine: 'builtin' }
+                              : { offlineMode: false },
+                          }),
+                        }),
+                        h('span', { key: 'label' }, t('offline')),
+                      ]),
+                    ]),
+                    settings.offlineMode === true
+                      ? h('div', { className: 'mc-hint', key: 'offline-hint' }, t('offlineOn'))
+                      : null,
+
+                    settings.translateEngine === 'local'
+                      ? h('div', { className: 'mc-row', key: 'local-fields' }, [
+                          h('label', { className: 'mc-field', key: 'local-url' }, [
+                            h('span', { key: 'label' }, t('localUrl')),
+                            h(TextField, {
+                              key: 'input', value: settings.localBaseUrl ?? '',
+                              placeholder: 'http://127.0.0.1:11434/v1',
+                              ariaLabel: t('localUrl'),
+                              onCommit: (value) => command({ action: 'settings', settings: { localBaseUrl: value } }),
+                            }),
+                          ]),
+                          h('label', { className: 'mc-field', key: 'local-model' }, [
+                            h('span', { key: 'label' }, t('localModel')),
+                            h(TextField, {
+                              key: 'input', value: settings.localModel ?? '',
+                              placeholder: 'qwen2.5:7b',
+                              ariaLabel: t('localModel'),
+                              onCommit: (value) => command({ action: 'settings', settings: { localModel: value } }),
+                            }),
+                          ]),
+                        ])
+                      : null,
+                    settings.translateEngine === 'local'
+                      ? h('div', { className: 'mc-hint', key: 'local-hint' }, t('localHint'))
+                      : null,
+                    settings.translateEngine === 'local'
+                      ? h('div', { className: 'mc-hint', key: 'local-note' }, t('engineLocalNote'))
+                      : null,
+
+                    h('div', { className: 'mc-row', key: 'lyric-tools' }, [
+                      h('button', {
+                        className: 'mc-ghost-btn', key: 'lyric-lock', type: 'button',
+                        onClick: () => save({ lyricLocked: !lyricLocked }),
+                      }, lyricLocked ? t('unlock') : t('lock')),
+                      h('button', {
+                        className: 'mc-ghost-btn', key: 'lyric-reset', type: 'button',
+                        onClick: () => { setLyricPos(null); setLyricSize(null); save({ lyricReset: true }) },
+                      }, t('resetPos')),
+                    ]),
+                    lyricLocked ? h('div', { className: 'mc-hint', key: 'locked-hint' }, t('lockedHint')) : null,
+
+                    !modelReady && !asrBusy && asr.available
+                      ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))
+                      : null,
+                    asrBusy && percent !== null
+                      ? h('div', {
+                          className: 'mc-progress', key: 'progress',
+                          role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent,
+                        }, h('span', { style: { width: `${percent}%` } }))
+                      : null,
+                    asrBusy && percent === null
+                      ? h('div', { className: 'mc-hint', key: 'hint' }, `${t('preparing')} · ${formatBytes(progress.completedBytes)}`)
+                      : null,
+
+                    (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready'
+                      ? h('div', { className: 'mc-row', key: 'mt-status' }, [
+                          h('div', { className: 'mc-hint', key: 'hint' },
+                            mt.installing
+                              ? (mt.installProgress?.message ?? t('mtPreparing'))
+                              : mt.state === 'failed'
+                                ? `${t('mtFailed')}：${mt.error ?? ''}`
+                                : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`),
+                          mt.missingDeps && !mt.installing
+                            ? h('button', {
+                                className: 'mc-ghost-btn', key: 'mt-install', type: 'button',
+                                onClick: () => command({ action: 'install_mt_deps' }),
+                              }, t('downloadDeps'))
+                            : null,
+                          mt.state === 'failed' && !mt.missingDeps && !mt.installing
+                            ? h('button', {
+                                className: 'mc-ghost-btn', key: 'mt-retry', type: 'button',
+                                onClick: () => save({ translateEngine: 'builtin' }),
+                              }, t('retry'))
+                            : null,
+                        ])
+                      : null,
+                    (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready' && mtPercent !== null
+                      ? h('div', {
+                          className: 'mc-progress', key: 'mt-progress',
+                          role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
+                        }, h('span', { style: { width: `${mtPercent}%` } }))
+                      : null,
+
+                    state?.engine?.label
+                      ? h('div', { className: 'mc-hint', key: 'engine-label' }, state.engine.label)
+                      : null,
+
+                    h('button', {
+                      className: 'mc-ghost-btn', key: 'clear', type: 'button',
+                      disabled: busy !== '' || entries.length === 0,
+                      onClick: () => {
+                        if (!clearArmed) {
+                          setClearArmed(true)
+                          clearTimeout(clearArmRef.current)
+                          clearArmRef.current = setTimeout(() => setClearArmed(false), 4000)
+                          return
+                        }
+                        clearTimeout(clearArmRef.current)
+                        clearArmRef.current = null
+                        setClearArmed(false)
+                        void command({ action: 'clear' })
+                      },
+                    }, clearArmed ? t('confirmClear') : t('clear')),
+                  ])
+                : null,
             ]),
           ]) : null,
 
