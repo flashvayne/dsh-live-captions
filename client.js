@@ -951,8 +951,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'mc-row', key: 'secondary' }, [
                 h('button', {
                   className: 'mc-ghost-btn', key: 'minutes', type: 'button',
-                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0 || settings.offlineMode === true,
-                  title: settings.offlineMode === true ? t('minutesUnavailable') : undefined,
+                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0,
                   onClick: () => command({ action: 'minutes' }),
                 }, minutes.generating ? t('generating') : t('minutes')),
                 h('button', {
@@ -1019,38 +1018,20 @@ window.__ModuleLoader__.load({
                         h('span', { key: 'label' }, t('engine')),
                         h('select', {
                           className: 'mc-select', key: 'select',
-                          value: settings.offlineMode === true
-                            ? 'builtin'
-                            : settings.translateEngine === 'local'
-                              ? 'local'
-                              : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
-                          disabled: settings.offlineMode === true,
-                          onChange: (event) => command({ action: 'settings', settings: { translateEngine: event.target.value } }),
+                          value: settings.translateEngine === 'local'
+                            ? 'local'
+                            : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
+                          onChange: (event) => command({
+                            action: 'settings',
+                            settings: { translateEngine: event.target.value, offlineMode: false },
+                          }),
                         }, [
                           h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
                           h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
                           h('option', { key: 'local', value: 'local' }, t('engine.local')),
                         ]),
                       ]),
-                      h('label', {
-                        className: 'mc-field', key: 'offline',
-                        style: { flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' },
-                      }, [
-                        h('input', {
-                          key: 'checkbox', type: 'checkbox', checked: settings.offlineMode === true,
-                          onChange: (event) => command({
-                            action: 'settings',
-                            settings: event.target.checked
-                              ? { offlineMode: true, translateEngine: 'builtin' }
-                              : { offlineMode: false },
-                          }),
-                        }),
-                        h('span', { key: 'label' }, t('offline')),
-                      ]),
                     ]),
-                    settings.offlineMode === true
-                      ? h('div', { className: 'mc-hint', key: 'offline-hint' }, t('offlineOn'))
-                      : null,
 
                     settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-row', key: 'local-fields' }, [
