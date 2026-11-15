@@ -86,10 +86,6 @@ const TOOL_PARAMETERS = {
       enum: ['cloud', 'builtin', 'local'],
       description: '翻译引擎：cloud=云端默认模型；builtin=插件内置的离线多语种模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端模型。',
     },
-    offlineMode: {
-      type: 'boolean',
-      description: '一键离线：字幕识别与翻译全部在本机完成（内置模型），此模式下会议纪要不可用。',
-    },
     localBaseUrl: {
       type: 'string',
       description: '本地模型的 OpenAI 兼容地址，例如 http://127.0.0.1:11434/v1（Ollama）。',
@@ -261,7 +257,6 @@ export function apply(ctx, config) {
             targetLanguage: input.targetLanguage,
             translate: input.translate,
             translateEngine: input.translateEngine,
-            offlineMode: input.offlineMode,
             localBaseUrl: input.localBaseUrl,
             localModel: input.localModel,
             lyricFontSize: input.lyricFontSize,
@@ -294,14 +289,13 @@ export function apply(ctx, config) {
         }
         if (action === 'start') {
           if (input.source || input.targetLanguage || input.sourceLanguage || input.translate !== undefined
-            || input.translateEngine || input.offlineMode !== undefined || input.localBaseUrl || input.localModel) {
+            || input.translateEngine || input.localBaseUrl || input.localModel) {
             controller.updateSettings({
               source: input.source,
               sourceLanguage: input.sourceLanguage,
               targetLanguage: input.targetLanguage,
               translate: input.translate,
               translateEngine: input.translateEngine,
-              offlineMode: input.offlineMode,
               localBaseUrl: input.localBaseUrl,
               localModel: input.localModel,
             })
