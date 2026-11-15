@@ -908,8 +908,29 @@ window.__ModuleLoader__.load({
               h('div', { className: 'mc-status', key: 'status' },
                 `${asrBusy && !running ? t('preparing') : t(`status.${status}`)}${asr.message ? ` · ${asr.message}` : ''}`),
 
-              // The one choice most people touch: subtitle language + translate.
+              // Core settings the user keeps on hand: source, source language,
+              // target language, and the translate switch.
               h('div', { className: 'mc-row', key: 'essential' }, [
+                h('label', { className: 'mc-field', key: 'source' }, [
+                  h('span', { key: 'label' }, t('source')),
+                  h('select', {
+                    className: 'mc-select', key: 'select', value: settings.source,
+                    onChange: (event) => command({ action: 'settings', settings: { source: event.target.value } }),
+                  }, [
+                    h('option', { key: 'both', value: 'both' }, t('source.both')),
+                    h('option', { key: 'speaker', value: 'speaker' }, t('source.speaker')),
+                    h('option', { key: 'mic', value: 'mic' }, t('source.mic')),
+                  ]),
+                ]),
+                h('label', { className: 'mc-field', key: 'spoken' }, [
+                  h('span', { key: 'label' }, t('spoken')),
+                  h('select', {
+                    className: 'mc-select', key: 'select', value: settings.sourceLanguage,
+                    onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
+                  }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
+                ]),
+              ]),
+              h('div', { className: 'mc-row', key: 'essential2' }, [
                 h('label', { className: 'mc-field', key: 'target' }, [
                   h('span', { key: 'label' }, t('target')),
                   h('select', {
@@ -992,27 +1013,6 @@ window.__ModuleLoader__.load({
 
               showAdvanced
                 ? h('div', { className: 'mc-advanced', key: 'advanced' }, [
-
-                    h('div', { className: 'mc-row', key: 'source-row' }, [
-                      h('label', { className: 'mc-field', key: 'source' }, [
-                        h('span', { key: 'label' }, t('source')),
-                        h('select', {
-                          className: 'mc-select', key: 'select', value: settings.source,
-                          onChange: (event) => command({ action: 'settings', settings: { source: event.target.value } }),
-                        }, [
-                          h('option', { key: 'both', value: 'both' }, t('source.both')),
-                          h('option', { key: 'speaker', value: 'speaker' }, t('source.speaker')),
-                          h('option', { key: 'mic', value: 'mic' }, t('source.mic')),
-                        ]),
-                      ]),
-                      h('label', { className: 'mc-field', key: 'spoken' }, [
-                        h('span', { key: 'label' }, t('spoken')),
-                        h('select', {
-                          className: 'mc-select', key: 'select', value: settings.sourceLanguage,
-                          onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
-                        }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
-                      ]),
-                    ]),
 
                     h('div', { className: 'mc-row', key: 'engine-row' }, [
                       h('label', { className: 'mc-field', key: 'engine-select' }, [
