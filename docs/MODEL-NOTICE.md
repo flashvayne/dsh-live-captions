@@ -1,7 +1,9 @@
-# Bundled model notices
+# Model notices
 
-This directory ships speech-recognition model files so the plugin can transcribe
-audio without downloading from Hugging Face at first run.
+These notices cover the speech-recognition models the plugin uses. The weights
+are **not** distributed with this repository or the npm package: the DeepSeek
+Harness SenseVoice provider downloads them once on first use, and a local
+`models/` directory (ignored by git) can be used to seed the same cache.
 
 ## SenseVoice (ASR)
 
