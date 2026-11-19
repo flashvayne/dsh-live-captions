@@ -13,3 +13,6 @@ minutes/
 Thumbs.db
 .vscode/
 .idea/
+
+# 本地打包产物（上传到 GitHub Release，不进仓库）
+*.tgz
