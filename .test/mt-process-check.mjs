@@ -8,7 +8,7 @@ const child = spawn(process.env.DSH_NODE_EXECUTABLE ?? process.execPath, [server
   env: {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
-    MT_CACHE_DIR: `${process.env.USERPROFILE}/.dsh/meeting-captions/models/mt`,
+    MT_CACHE_DIR: `${process.env.USERPROFILE}/.dsh/live-captions/models/mt`,
     MT_REMOTE_HOST: 'https://hf-mirror.com',
     MT_MODEL: 'Xenova/m2m100_418M',
   },

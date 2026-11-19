@@ -1,12 +1,12 @@
 window.__ModuleLoader__.load({
-  id: '@local/meeting-captions',
+  id: 'dsh-live-captions',
   factory(require) {
     const React = require('react')
     const { useCallback, useEffect, useRef, useState } = React
     const h = React.createElement
 
-    const NS = 'meeting-captions'
-    const API = '/meeting-captions/api'
+    const NS = 'live-captions'
+    const API = '/live-captions/api'
 
     const DICT = {
       en: {
@@ -15,8 +15,8 @@ window.__ModuleLoader__.load({
         'start': 'Start',
         'stop': 'Stop',
         'prepare': 'Download model',
-        'downloadModel': 'Download model (≈240 MB)',
-        'firstRunHint': 'The recognition model ships with the plugin and is prepared on this machine; nothing is downloaded. Audio is recognised locally and never uploaded.',
+        'downloadModel': 'Download model (≈230 MB)',
+        'firstRunHint': 'The recognition model is not bundled: the first Start downloads about 230 MB once (from hf-mirror in mainland China) and caches it on this machine. Audio is recognised locally and never uploaded.',
         'preparing': 'Preparing model',
         'minutes': 'Minutes',
         'generating': 'Writing minutes…',
@@ -65,13 +65,10 @@ window.__ModuleLoader__.load({
         'engine.cloud': 'Cloud model',
         'engine.builtin': 'Built-in offline model',
         'engine.local': 'Local server',
-        'offline': 'Offline mode',
-        'offlineOn': 'Offline mode: recognition and translation both stay on this machine. Meeting minutes need the cloud model and are unavailable.',
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
         'retry': 'Retry',
         'downloadDeps': 'Download dependency',
-        'minutesUnavailable': 'Offline mode: minutes unavailable',
         'localUrl': 'Endpoint',
         'localModel': 'Model',
         'localHint': 'Ollama: http://127.0.0.1:11434/v1 · LM Studio: http://127.0.0.1:1234/v1',
@@ -98,8 +95,8 @@ window.__ModuleLoader__.load({
         'start': '开始',
         'stop': '停止',
         'prepare': '下载识别模型',
-        'downloadModel': '下载识别模型（约 240 MB）',
-        'firstRunHint': '识别模型已随插件打包，首次点「开始」会在本机准备好，无需联网下载；语音在本机识别，音频不会上传。',
+        'downloadModel': '下载识别模型（约 230 MB）',
+        'firstRunHint': '识别模型不在安装包里：首次点「开始」会下载约 230 MB（国内走 hf-mirror），之后本机缓存、不再联网；语音在本机识别，音频不会上传。',
         'preparing': '正在准备模型',
         'minutes': '生成纪要',
         'generating': '正在生成纪要…',
@@ -148,13 +145,10 @@ window.__ModuleLoader__.load({
         'engine.cloud': '云端默认模型',
         'engine.builtin': '内置离线模型',
         'engine.local': '本地推理服务',
-        'offline': '一键离线',
-        'offlineOn': '离线模式：识别和翻译都在本机完成；会议纪要需要云端模型，此时不可用。',
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
         'retry': '重试',
         'downloadDeps': '下载依赖',
-        'minutesUnavailable': '离线模式：纪要不可用',
         'localUrl': '服务地址',
         'localModel': '模型名',
         'localHint': 'Ollama：http://127.0.0.1:11434/v1 · LM Studio：http://127.0.0.1:1234/v1',
@@ -1023,7 +1017,7 @@ window.__ModuleLoader__.load({
                             : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
                           onChange: (event) => command({
                             action: 'settings',
-                            settings: { translateEngine: event.target.value, offlineMode: false },
+                            settings: { translateEngine: event.target.value },
                           }),
                         }, [
                           h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
@@ -1087,7 +1081,7 @@ window.__ModuleLoader__.load({
                       ? h('div', { className: 'mc-hint', key: 'hint' }, `${t('preparing')} · ${formatBytes(progress.completedBytes)}`)
                       : null,
 
-                    (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready'
+                    settings.translateEngine === 'builtin' && mt.state !== 'ready'
                       ? h('div', { className: 'mc-row', key: 'mt-status' }, [
                           h('div', { className: 'mc-hint', key: 'hint' },
                             mt.installing
@@ -1109,7 +1103,7 @@ window.__ModuleLoader__.load({
                             : null,
                         ])
                       : null,
-                    (settings.offlineMode === true || settings.translateEngine === 'builtin') && mt.state !== 'ready' && mtPercent !== null
+                    settings.translateEngine === 'builtin' && mt.state !== 'ready' && mtPercent !== null
                       ? h('div', {
                           className: 'mc-progress', key: 'mt-progress',
                           role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
@@ -1159,13 +1153,13 @@ window.__ModuleLoader__.load({
       inject: ['slots', 'locale'],
       apply(ctx) {
         try {
-          ctx.effect(() => ctx.locale.register(NS, DICT), 'meeting-captions: locale')
+          ctx.effect(() => ctx.locale.register(NS, DICT), 'live-captions: locale')
         } catch (error) {
-          console.warn('[meeting-captions] locale registration failed', error)
+          console.warn('[live-captions] locale registration failed', error)
         }
         ctx.slots.inject('shell.overlay', () => ctx.slots.register({
           name: 'shell.overlay',
-          id: 'meeting-captions',
+          id: 'live-captions',
           order: 40,
           label: () => (localeId(ctx) === 'zh' ? '实时字幕' : 'Live captions'),
         }, (props) => h(Overlay, { ...props, ctx })))

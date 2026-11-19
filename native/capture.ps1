@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 <#
-  Real-time audio capture helper for the meeting-captions plugin.
+  Real-time audio capture helper for the live-captions plugin.
 
   Captures the Windows default *render* endpoint in loopback mode (what the
   speakers play) and/or the default *capture* endpoint (microphone), mixes them

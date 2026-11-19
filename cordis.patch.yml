@@ -1,22 +1,22 @@
 - insert:
     # Local speech recognition (SenseVoiceSmall + Silero VAD) on this machine.
     # These rows come from the dsh installation, so the bundle declares no
-    # dependency on them. Do not also enable the shipped "Voice Input" bundle:
+    # dependency on them. Do not also enable the shipped "Voice input" bundle:
     # both rows register the same speech service and the second one fails.
-    - id: meeting-captions-stt
+    - id: live-captions-stt
       name: '@deepseek-ai/dsh-experimental-speech-to-text'
       config:
         defaultProvider: sensevoice-local
-    - id: meeting-captions-sensevoice
+    - id: live-captions-sensevoice
       name: '@deepseek-ai/dsh-experimental-speech-to-text-sensevoice'
       config:
         dataRoot: !!js dshHomePath('speech-to-text', 'sensevoice')
         threads: 6
         segmentSeconds: 8
-    - id: meeting-captions
-      name: '@local/meeting-captions'
+    - id: live-captions
+      name: 'dsh-live-captions'
       config:
-        dataRoot: !!js dshHomePath('meeting-captions')
+        dataRoot: !!js dshHomePath('live-captions')
         segmentSeconds: 4
         minSegmentSeconds: 1.2
         source: both
@@ -25,8 +25,6 @@
         translate: true
         # cloud = 云端默认模型；builtin = 插件内置离线模型；local = 自建 OpenAI 兼容服务
         translateEngine: cloud
-        # 一键离线：true 时识别+翻译都在本机，会议纪要不可用
-        offlineMode: false
         localBaseUrl: http://127.0.0.1:11434/v1
         localModel: ''
         # 内置离线翻译模型（多语种，首次使用下载约 600 MB）

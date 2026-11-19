@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "Live captions",
-    "description": "Captures system audio and the microphone, transcribes speech with a local SenseVoice model (the model ships with the plugin, so recognition needs no download), translates each line into the language you choose and floats the subtitles over the window. Translation can run on the cloud default model, a built-in offline multilingual model (about 600 MB on first use), or your own Ollama/LM Studio server. Open it from the \"Live captions\" pill at the bottom right. Audio never leaves the machine — only subtitle text that needs cloud translation or minutes is sent to the model provider."
+    "detail": "docs/DETAIL.md",
+    "description": "Turns the audio your computer is playing plus the microphone into live multilingual subtitles. Recognition runs on this machine with a local SenseVoice model (about 230 MB downloaded on the first Start, from hf-mirror in mainland China, then cached; audio is never uploaded). Each line is translated into the language you pick and floats in a draggable caption box. Translation can use the cloud default model, a built-in offline multilingual model (a separate one-time download of about 600 MB), or your own Ollama / LM Studio server. Open it from the \"Live captions\" pill at the bottom right of the UI; one click writes meeting minutes at the end of a meeting (always with the cloud model). Windows only — capture uses WASAPI loopback — and do not enable it together with the bundled Voice input plugin."
   }
 }

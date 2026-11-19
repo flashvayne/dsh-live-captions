@@ -11,7 +11,7 @@ let loaded = null
 globalThis.window = { __ModuleLoader__: { load(entry) { loaded = entry } } }
 await import(pathToFileURL(CLIENT).href)
 if (loaded === null) throw new Error('client.js did not call __ModuleLoader__.load')
-if (loaded.id !== '@local/meeting-captions') throw new Error(`unexpected module id ${loaded.id}`)
+if (loaded.id !== 'dsh-live-captions') throw new Error(`unexpected module id ${loaded.id}`)
 
 const react = {
   createElement: (type, props, children) => ({ type, props, children }),
@@ -61,7 +61,7 @@ if (!Array.isArray(plugin.inject)) throw new Error('plugin.inject missing')
 plugin.apply(ctx)
 
 if (recorded.inject !== 'shell.overlay') throw new Error(`injected into ${recorded.inject}`)
-if (recorded.slot?.id !== 'meeting-captions') throw new Error('slot id mismatch')
+if (recorded.slot?.id !== 'live-captions') throw new Error('slot id mismatch')
 if (typeof recorded.slot?.label === 'function') recorded.slot.label()
 
 // Every literal t('...') key (plus the generated language/status keys) must exist in zh and en.

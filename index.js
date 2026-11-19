@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, realpathSync, statSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, realpathSync, renameSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,14 +13,34 @@ function homeRoot() {
 
 function resolveDataRoot(config) {
   if (typeof config?.dataRoot === 'string' && config.dataRoot !== '') return config.dataRoot
-  return join(homeRoot(), 'meeting-captions')
+  return join(homeRoot(), 'live-captions')
+}
+
+/**
+ * The plugin used to be called "meeting captions" and wrote its transcripts,
+ * records, settings and model cache under `~/.dsh/meeting-captions`. Adopt that
+ * directory on the first run after the rename instead of starting empty; a
+ * rename inside the same home directory is cheap even for the model cache.
+ * Failure is not fatal: a fresh root is used and the old one stays untouched.
+ */
+function adoptLegacyDataRoot(dataRoot, log) {
+  try {
+    const legacy = join(homeRoot(), 'meeting-captions')
+    if (dataRoot === legacy || !existsSync(legacy) || existsSync(dataRoot)) return
+    mkdirSync(dirname(dataRoot), { recursive: true })
+    renameSync(legacy, dataRoot)
+    log(`adopted earlier data root ${legacy} as ${dataRoot}`)
+  } catch (error) {
+    log(`could not adopt the earlier data root: ${error.message}`)
+  }
 }
 
 /**
  * Where the shipped SenseVoice provider keeps its models. This must match the
- * `dataRoot` of the `meeting-captions-sensevoice` row in cordis.patch.yml
- * (`dshHomePath('speech-to-text', 'sensevoice')`); the plugin seeds the bundled
- * model files there so recognition never needs a network download.
+ * `dataRoot` of the `live-captions-sensevoice` row in cordis.patch.yml
+ * (`dshHomePath('speech-to-text', 'sensevoice')`). A source checkout seeds the
+ * files from `models/` there; a published install lets the provider download
+ * them once into the same cache.
  */
 function resolveSttDataRoot() {
   return join(homeRoot(), 'speech-to-text', 'sensevoice')
@@ -29,7 +49,7 @@ function resolveSttDataRoot() {
 function createLogger(dataRoot) {
   const directory = join(dataRoot, 'logs')
   mkdirSync(directory, { recursive: true })
-  const file = join(directory, 'meeting-captions.log')
+  const file = join(directory, 'live-captions.log')
   let writable = true
   try {
     if (statSync(file).size > LOG_LIMIT) appendFileSync(file, '')
@@ -45,11 +65,11 @@ function createLogger(dataRoot) {
         writable = false
       }
     }
-    console.log(`[meeting-captions] ${message}`)
+    console.log(`[live-captions] ${message}`)
   }
 }
 
-const TOOL_NAME = 'meeting_captions'
+const TOOL_NAME = 'live_captions'
 
 /** JSON-schema for the single agent-facing tool. */
 const TOOL_PARAMETERS = {
@@ -58,7 +78,7 @@ const TOOL_PARAMETERS = {
     action: {
       type: 'string',
       enum: ['start', 'stop', 'status', 'prepare', 'install_mt_deps', 'minutes', 'settings', 'records'],
-      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（已随插件打包，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
+      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（首次使用会下载约 230 MB，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
     },
     session: {
       type: 'string',
@@ -164,8 +184,8 @@ function summarize(state) {
   lines.push(`状态：${statusText}${state.error ? `（${state.error}）` : ''}`)
   lines.push(`识别：${state.asr.providerName ?? '未知'} / ${state.asr.phase}${state.asr.message ? `（${state.asr.message}）` : ''}`)
   lines.push(`来源：${state.settings.source}；源语言：${state.settings.sourceLanguage}；目标语言：${state.targetLabel}`)
-  lines.push(`翻译：${state.engine?.label ?? '未知'}${state.offline ? '（离线模式，会议纪要不可用）' : '（会议纪要固定用云端模型）'}`)
-  if (state.mt && state.mt.state !== 'ready' && (state.offline || state.settings.translateEngine === 'builtin')) {
+  lines.push(`翻译：${state.engine?.label ?? '未知'}（会议纪要固定用云端模型）`)
+  if (state.mt && state.mt.state !== 'ready' && state.settings.translateEngine === 'builtin') {
     const progress = state.mt.progress ?? {}
     const percent = progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : null
     lines.push(`内置翻译模型：${state.mt.state}${percent === null ? '' : ` ${percent}%`}${state.mt.error ? `（${state.mt.error}）` : ''}`)
@@ -187,9 +207,12 @@ function summarize(state) {
 
 export function apply(ctx, config) {
   const dataRoot = resolveDataRoot(config)
+  const boot = []
+  adoptLegacyDataRoot(dataRoot, (message) => boot.push(message))
   mkdirSync(dataRoot, { recursive: true })
   const log = createLogger(dataRoot)
   log(`plugin activated, dataRoot=${dataRoot}`)
+  for (const message of boot) log(message)
 
   // The built-in translation dependency is installed on demand into this
   // package's own node_modules, so it must know where it lives (realpath so a
@@ -213,13 +236,13 @@ export function apply(ctx, config) {
   ctx.effect(() => () => {
     log('plugin unloading')
     void controller.dispose()
-  }, 'meeting-captions: controller')
+  }, 'live-captions: controller')
 
   // Both the API and the agent tool depend on services that may not exist yet
   // during a cold boot; `ctx.inject` registers them as soon as each appears.
   ctx.inject(['webServer'], (scoped) => {
     const dispose = registerApi({ ctx: scoped, controller, log })
-    scoped.effect(() => dispose, 'meeting-captions: api')
+    scoped.effect(() => dispose, 'live-captions: api')
   })
 
   ctx.inject(['tools'], (scoped) => {
@@ -326,9 +349,10 @@ export function apply(ctx, config) {
             records.length > 30 ? `（仅显示前 30 条，完整内容见记录页面）` : '',
             ...head,
           ].filter(Boolean)
-          return { ok: true, summary: lines.join('\n'), path: `~/.dsh/meeting-captions/sessions/${sessionId}/transcript.jsonl` }
+          return { ok: true, summary: lines.join('\n'), path: `~/.dsh/live-captions/sessions/${sessionId}/transcript.jsonl` }
         }
-        if (action === 'minutes') {          const result = await controller.generateMinutes({ title: input.title })
+        if (action === 'minutes') {
+          const result = await controller.generateMinutes({ title: input.title })
           return {
             ok: true,
             summary: `已生成会议纪要并保存到 ${result.path}`,
@@ -339,6 +363,6 @@ export function apply(ctx, config) {
         return { ok: false, summary: `未知操作：${String(action)}` }
       },
     }, {})
-    scoped.effect(() => dispose, 'meeting-captions: tool')
+    scoped.effect(() => dispose, 'live-captions: tool')
   })
 }
