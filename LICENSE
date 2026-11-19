@@ -22,5 +22,5 @@ SOFTWARE.
 
 Third-party model files are not distributed with this package. The SenseVoice
 and Silero VAD weights the plugin uses are downloaded by the DeepSeek Harness
-speech-to-text provider under their own licences; see models/NOTICE.md in the
+speech-to-text provider under their own licences; see docs/MODEL-NOTICE.md in the
 source repository.

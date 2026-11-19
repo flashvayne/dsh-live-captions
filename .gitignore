@@ -16,3 +16,8 @@ Thumbs.db
 
 # 本地打包产物（上传到 GitHub Release，不进仓库）
 *.tgz
+
+# 模型权重不进仓库：230 MB 的 onnx 超过 GitHub 单文件 100 MB 上限，
+# 而且首次使用时由宿主的 SenseVoice provider 自己下载（见 README）。
+# 本地开发时把权重放在这里即可，asr.js 会把它们复制到 provider 的缓存里。
+models/

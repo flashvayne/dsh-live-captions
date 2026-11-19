@@ -116,8 +116,8 @@ node .test/mt-process-check.mjs    # 直接驱动内置翻译子进程
 node .test/mock-local-llm.cjs 11434 # 假的 OpenAI 兼容服务，用来验证「本地推理服务」
 ```
 
-翻译模型权重（`models/`）只在源码检出里存在，**不进入 npm 包**；检出里存在时会在首次使用时复制到宿主的识别模型缓存，避免重复下载。模型署名与许可见 `models/NOTICE.md`。
+翻译模型权重（`models/`）只在源码检出里存在，**不进仓库、也不进 npm 包**；检出里存在时会在首次使用时复制到宿主的识别模型缓存，避免重复下载。模型署名与许可见 `docs/MODEL-NOTICE.md`。
 
 ## License
 
-MIT。第三方模型权重的许可见 `models/NOTICE.md`。
+MIT。第三方模型权重的许可见 `docs/MODEL-NOTICE.md`。
