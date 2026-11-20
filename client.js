@@ -612,22 +612,25 @@ window.__ModuleLoader__.load({
       const listRef = useRef(null)
       const liveListRef = useRef(null)
       const pipRef = useRef(null)
+      // "Follow the newest line" is a per-list sticky decision: it stays on until
+      // the reader scrolls up, and any content change re-pins the view.
+      const listPinnedRef = useRef(true)
+      const livePinnedRef = useRef(true)
 
-      // Keep the transcript pinned to the newest line unless the reader scrolled up.
+      // Keep the transcript pinned to the newest line; a new poll, a late
+      // translation or a taller row all count as "something changed".
       useEffect(() => {
         const list = listRef.current
-        if (list === null || entries.length === 0) return
-        const distance = list.scrollHeight - list.scrollTop - list.clientHeight
-        if (distance < 96) list.scrollTop = list.scrollHeight
-      }, [entries.length])
+        if (list === null || !listPinnedRef.current) return
+        list.scrollTop = list.scrollHeight
+      }, [entries])
 
       // The detached window follows the newest line the same way.
       useEffect(() => {
         const list = liveListRef.current
-        if (list === null) return
-        const distance = list.scrollHeight - list.scrollTop - list.clientHeight
-        if (distance < 96) list.scrollTop = list.scrollHeight
-      }, [entries.length, liveOpen])
+        if (list === null || !livePinnedRef.current) return
+        list.scrollTop = list.scrollHeight
+      }, [entries, liveOpen])
 
       // Escape closes the records pop-up first, then the panel; only one of the
       // two responds so the other stays open underneath.
@@ -941,6 +944,19 @@ window.__ModuleLoader__.load({
         setPinned(atBottom)
       }
 
+      /** Same rule for the panel list and the detached window. */
+      const onListScroll = () => {
+        const list = listRef.current
+        if (list === null) return
+        listPinnedRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 24
+      }
+
+      const onLiveScroll = () => {
+        const list = liveListRef.current
+        if (list === null) return
+        livePinnedRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 24
+      }
+
       const scrollToLatest = () => {
         const body = lyricBodyRef.current
         if (body === null) return
@@ -1177,7 +1193,7 @@ window.__ModuleLoader__.load({
         const body = lyricBodyRef.current
         if (body === null || !pinnedRef.current) return
         body.scrollTop = body.scrollHeight
-      }, [entries.length, entries.length > 0 ? entries[entries.length - 1].translation : null])
+      }, [entries])
 
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
@@ -1293,7 +1309,7 @@ window.__ModuleLoader__.load({
               onClick: () => setLiveOpen(false), 'aria-label': t('close'), title: t('close'),
             }, '×'),
           ]),
-          h('div', { className: 'mc-records-list', key: 'list', ref: liveListRef },
+          h('div', { className: 'mc-records-list', key: 'list', ref: liveListRef, onScroll: onLiveScroll },
             entries.length === 0
               ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
               : entries.slice(-200).map((entry) => h('div', { className: 'mc-record', key: entry.seq }, [
@@ -1546,7 +1562,7 @@ window.__ModuleLoader__.load({
                     ? h('div', { className: 'mc-empty', key: 'detached' }, t('transcriptDetached'))
                     : entries.length === 0
                     ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
-                    : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
+                    : h('div', { className: 'mc-list', key: 'list', ref: listRef, onScroll: onListScroll }, entries.slice(-40).map((entry) =>
                       h('div', {
                         className: `mc-tr-row${entry.live ? ' mc-tr-live' : ''}`, key: entry.seq,
                       }, [
