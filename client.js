@@ -46,6 +46,9 @@ window.__ModuleLoader__.load({
         'unlock': 'Unlock',
         'resetPos': 'Reset position',
         'lockedHint': 'Locked: click-through, unlock from the panel.',
+        'overlay': 'Floating overlay',
+        'overlayOff': 'Hidden — captions keep recording; turn it back on here.',
+        'hideOverlay': 'Hide overlay',
         'dragHint': 'Drag to move',
         'resize': 'Resize',
         'backToLive': 'Back to live',
@@ -127,6 +130,9 @@ window.__ModuleLoader__.load({
         'unlock': '解锁',
         'resetPos': '重置位置',
         'lockedHint': '已锁定：可点击穿透，在面板里解锁。',
+        'overlay': '字幕浮层',
+        'overlayOff': '已隐藏，字幕仍在记录；需要时在这里重新打开。',
+        'hideOverlay': '隐藏浮层',
         'dragHint': '拖动可移动',
         'resize': '调整大小',
         'backToLive': '回到最新',
@@ -240,6 +246,7 @@ window.__ModuleLoader__.load({
   background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;cursor:pointer}
 .mc-lyric-tool:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l1)}
 .mc-lyric-tool:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-lyric-tool-close{margin-left:auto;font-size:14px;line-height:1;padding-bottom:2px}
 .mc-lyric-body{display:flex;flex-direction:column;gap:12px;min-height:0;flex:1 1 auto;
   overflow-y:auto;overflow-x:hidden;padding-right:4px;overscroll-behavior:contain}
 .mc-lyric-entry{display:flex;flex-direction:column;gap:3px;padding-bottom:8px;
@@ -785,6 +792,7 @@ window.__ModuleLoader__.load({
       const lyricW = Math.min(lyricSize === null ? (settings.lyricW ?? 560) : lyricSize.w, viewportW - 16)
       const lyricH = Math.min(lyricSize === null ? (settings.lyricH ?? 220) : lyricSize.h, viewportH - 16)
       const lyricLocked = settings.lyricLocked === true
+      const lyricVisible = settings.lyricVisible !== false
       const lyricStyle = {
         '--mc-lyric-size': `${settings.lyricFontSize ?? 22}px`,
         opacity: settings.lyricOpacity ?? 0.92,
@@ -816,7 +824,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
 
-        running ? h('div', {
+        running && lyricVisible ? h('div', {
           ref: lyricRef,
           className: `mc-lyric${lyricLocked ? ' mc-lyric-locked' : ''}`,
           key: 'lyric',
@@ -870,6 +878,11 @@ window.__ModuleLoader__.load({
               title: t('resetPos'), 'aria-label': t('resetPos'),
               onClick: () => { setLyricPos(null); setLyricSize(null); save({ lyricReset: true }) },
             }, '⟲'),
+            h('button', {
+              className: 'mc-lyric-tool mc-lyric-tool-close', key: 'hide', type: 'button',
+              title: t('hideOverlay'), 'aria-label': t('hideOverlay'),
+              onClick: () => save({ lyricVisible: false }),
+            }, '×'),
           ]),
           h('div', {
             className: 'mc-lyric-body', key: 'body',
@@ -1055,6 +1068,20 @@ window.__ModuleLoader__.load({
                       }, TARGET_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
                     ])
                   : h('div', { className: 'mc-hint', key: 'off' }, t('translateOff')),
+              ]),
+
+              // The overlay can be dismissed from its own close button; this is
+              // the way back in, and the only place that turns it on again.
+              h('div', { className: 'mc-grp', key: 'overlay' }, [
+                h('div', { className: 'mc-irow', key: 'switch' }, [
+                  h('span', { className: 'mc-lbl-strong', key: 'lbl' }, t('overlay')),
+                  h('button', {
+                    className: 'mc-sw', key: 'sw', type: 'button', role: 'switch',
+                    'aria-checked': lyricVisible, 'aria-label': t('overlay'),
+                    onClick: () => save({ lyricVisible: !lyricVisible }),
+                  }),
+                ]),
+                lyricVisible ? null : h('div', { className: 'mc-hint', key: 'off' }, t('overlayOff')),
               ]),
 
               // Live transcript.
