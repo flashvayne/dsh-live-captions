@@ -207,6 +207,13 @@ window.__ModuleLoader__.load({
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
 
+    function formatDuration(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return '00:00:00'
+      const total = Math.floor(ms / 1000)
+      const pad = (value) => String(value).padStart(2, '0')
+      return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`
+    }
+
     function statusColor(status) {
       if (status === 'running') return 'var(--dsw-alias-state-success-primary)'
       if (status === 'error') return 'var(--dsw-alias-state-error-primary)'
@@ -265,75 +272,140 @@ window.__ModuleLoader__.load({
 .mc-record-tr{font-size:13.5px;line-height:1.5;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
 .mc-records-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
   padding:8px 14px;border-top:1px solid var(--dsw-alias-border-l1);flex:0 0 auto}
-.mc-dock{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
-.mc-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;
-  border-radius:19px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);
-  color:var(--dsw-alias-label-primary);font-size:13px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+.mc-dock{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:9px}
+.mc-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;
+  border-radius:17px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);
+  color:var(--dsw-alias-label-primary);font-size:12px;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.18)}
 .mc-pill:hover{border-color:var(--dsw-alias-border-l2)}
 .mc-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.mc-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
-.mc-panel{pointer-events:auto;width:392px;max-height:min(68vh,600px);display:flex;flex-direction:column;
-  border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);
-  color:var(--dsw-alias-label-primary);overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.18)}
-.mc-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.mc-head-title{font-size:14px;font-weight:600;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.mc-bar{display:inline-flex;align-items:flex-end;gap:2px;height:11px;margin-left:1px}
+.mc-bar > i{display:block;width:2.5px;border-radius:2px;background:var(--dsw-alias-state-success-primary);
+  transform-origin:bottom;animation:mc-level 1.05s ease-in-out infinite}
+.mc-bar > i:nth-child(1){height:4px;animation-delay:0s}
+.mc-bar > i:nth-child(2){height:10px;animation-delay:.14s}
+.mc-bar > i:nth-child(3){height:6px;animation-delay:.3s}
+.mc-bar > i:nth-child(4){height:8px;animation-delay:.44s}
+@keyframes mc-level{0%,100%{transform:scaleY(.55)}50%{transform:scaleY(1)}}
+@keyframes mc-pulse{0%,100%{box-shadow:0 0 0 3px rgba(62,207,142,.16)}50%{box-shadow:0 0 0 6px rgba(62,207,142,.05)}}
+.mc-timer{font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.mc-cap{font-size:10.5px;letter-spacing:.07em;color:var(--dsw-alias-label-secondary);opacity:.82}
+
+.mc-panel{pointer-events:auto;width:400px;max-height:min(74vh,660px);display:flex;flex-direction:column;
+  border-radius:13px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary);overflow:hidden;box-shadow:0 20px 54px rgba(0,0,0,.32)}
+.mc-head{display:flex;align-items:center;gap:7px;height:38px;padding:0 8px 0 12px;
+  border-bottom:1px solid var(--dsw-alias-border-l1);flex:0 0 auto}
+.mc-head-title{font-size:13px;font-weight:600;white-space:nowrap;flex:0 0 auto}
+.mc-head-status{font-size:11px;color:var(--dsw-alias-label-secondary);flex:1 1 auto;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-head .mc-timer{padding-left:6px}
+.mc-toggle{pointer-events:auto;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;
+  border-radius:6px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);
+  color:var(--dsw-alias-label-primary);font-size:11.5px;font-family:inherit;cursor:pointer;flex:0 0 auto}
+.mc-toggle:hover:not([disabled]){border-color:var(--dsw-alias-label-secondary)}
+.mc-toggle[disabled]{opacity:.5;cursor:not-allowed}
+.mc-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-toggle-mark{width:7px;height:7px;border-radius:1.5px;background:var(--dsw-alias-state-error-primary);flex:0 0 auto}
+.mc-start{pointer-events:auto;height:24px;padding:0 10px;border-radius:6px;border:1px solid transparent;
+  background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base);font-size:11.5px;font-weight:600;
+  font-family:inherit;cursor:pointer;flex:0 0 auto}
+.mc-start:hover:not([disabled]){opacity:.88}
+.mc-start[disabled]{opacity:.5;cursor:not-allowed}
+.mc-start:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .mc-icon-btn{pointer-events:auto;border:0;background:transparent;color:var(--dsw-alias-label-secondary);
-  cursor:pointer;font-size:16px;line-height:1;padding:4px 6px;border-radius:6px}
+  cursor:pointer;font-size:15px;line-height:1;padding:4px 5px;border-radius:6px;flex:0 0 auto}
 .mc-icon-btn:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .mc-icon-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.mc-body{padding:12px 14px;display:flex;flex-direction:column;gap:10px;overflow:auto}
-.mc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.mc-status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary)}
-.mc-primary-btn{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--dsw-alias-label-primary);
-  background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base);font-size:13px;cursor:pointer;font-weight:500}
-.mc-primary-btn:hover:not([disabled]){opacity:.88}
-.mc-primary-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.mc-primary-btn[disabled]{opacity:.55;cursor:not-allowed}
-.mc-ghost-btn{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);
-  background:transparent;color:var(--dsw-alias-label-primary);font-size:13px;cursor:pointer}
-.mc-ghost-btn:hover:not([disabled]){border-color:var(--dsw-alias-border-l2)}
-.mc-ghost-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.mc-ghost-btn[disabled]{opacity:.5;cursor:not-allowed}
-.mc-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dsw-alias-label-secondary);flex:1 1 0;min-width:0}
-.mc-select{pointer-events:auto;height:30px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 6px;width:100%}
+.mc-icon-btn[disabled]{opacity:.45;cursor:not-allowed}
+
+.mc-body{padding:12px 12px 0;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;min-height:0}
+.mc-alerts{display:flex;flex-direction:column;gap:6px;padding-bottom:2px}
+.mc-grp{display:flex;flex-direction:column;gap:7px}
+.mc-grp + .mc-grp{margin-top:11px;padding-top:11px;border-top:1px solid var(--dsw-alias-border-l1)}
+.mc-irow{display:flex;align-items:center;gap:8px;min-width:0}
+.mc-irow .mc-lbl{font-size:12px;color:var(--dsw-alias-label-secondary);flex:0 0 auto}
+.mc-irow .mc-lbl-strong{font-size:12.5px;color:var(--dsw-alias-label-primary);flex:0 0 auto}
+.mc-irow .mc-note{font-size:10.5px;color:var(--dsw-alias-label-secondary);opacity:.85;margin-left:auto;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-seg{display:flex;background:var(--dsw-alias-bg-layer-2);border-radius:8px;padding:2.5px;gap:2px}
+.mc-seg > button{pointer-events:auto;flex:1 1 0;height:24px;min-width:0;padding:0 4px;border:0;border-radius:6px;
+  background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;font-family:inherit;
+  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-seg > button:hover:not([aria-pressed="true"]){color:var(--dsw-alias-label-primary)}
+.mc-seg > button[aria-pressed="true"]{background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);
+  box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.mc-seg > button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-sw{pointer-events:auto;position:relative;width:34px;height:19px;flex:0 0 auto;padding:0;border:0;
+  border-radius:10px;background:var(--dsw-alias-border-l2);cursor:pointer;transition:background .15s;margin-left:auto}
+.mc-sw::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;
+  background:var(--dsw-alias-label-primary);transition:left .15s,background .15s,opacity .15s;opacity:.92}
+.mc-sw[aria-checked="true"]{background:var(--dsw-alias-brand-primary)}
+.mc-sw[aria-checked="true"]::after{left:17px;background:#fff}
+.mc-sw:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+
+.mc-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}
+.mc-list{display:flex;flex-direction:column;max-height:236px;overflow-y:auto;overflow-x:hidden;padding-right:2px}
+.mc-tr-row{display:grid;grid-template-columns:40px 1fr;gap:9px;padding:6px 0;
+  border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mc-tr-row:last-child{border-bottom:0}
+.mc-tr-t{font-size:10px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;
+  padding-top:3px;opacity:.9}
+.mc-tr-body{min-width:0}
+.mc-tr-src{font-size:11px;line-height:1.5;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.mc-tr-tr{font-size:12.5px;line-height:1.5;color:var(--dsw-alias-label-primary);margin-top:1px;overflow-wrap:anywhere}
+.mc-tr-live .mc-tr-t{color:var(--dsw-alias-state-success-primary)}
+.mc-tr-pending{opacity:.6}
+
+.mc-foot{display:flex;gap:6px;padding:9px 12px;border-top:1px solid var(--dsw-alias-border-l1);
+  flex:0 0 auto;margin-top:11px;background:var(--dsw-alias-bg-layer-1)}
+.mc-fbtn{pointer-events:auto;flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  height:29px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);background:transparent;
+  color:var(--dsw-alias-label-primary);font-size:11.5px;font-family:inherit;cursor:pointer}
+.mc-fbtn:hover:not([disabled]){background:var(--dsw-alias-bg-layer-2)}
+.mc-fbtn[disabled]{opacity:.45;cursor:not-allowed}
+.mc-fbtn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-fbtn.icon{flex:0 0 36px;font-size:13px}
+.mc-fbtn[aria-expanded="true"]{background:var(--dsw-alias-bg-layer-2)}
+
+.mc-select{pointer-events:auto;height:29px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);
+  background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;
+  padding:0 6px;width:100%;font-family:inherit}
 .mc-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.mc-input{pointer-events:auto;height:30px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);
-  background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 8px;
-  width:100%;box-sizing:border-box}
+.mc-irow .mc-select{width:148px;flex:0 0 148px;margin-left:auto}
+.mc-input{pointer-events:auto;height:29px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);
+  background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 8px;
+  width:100%;box-sizing:border-box;font-family:inherit}
 .mc-input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.mc-progress{height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
+.mc-progress{height:3px;border-radius:2px;background:var(--dsw-alias-bg-layer-2);overflow:hidden;flex:0 0 auto}
 .mc-progress > span{display:block;height:100%;background:var(--dsw-alias-brand-primary);transition:width .3s}
-.mc-hint{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.5;overflow-wrap:anywhere}
-.mc-error{font-size:12px;color:var(--dsw-alias-state-error-primary);line-height:1.5;overflow-wrap:anywhere}
-.mc-warn{font-size:12px;color:var(--dsw-alias-state-warn-primary);line-height:1.5;overflow-wrap:anywhere}
-.mc-section-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);display:flex;gap:8px;align-items:center;justify-content:space-between}
-.mc-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;padding-right:2px}
-.mc-item{display:flex;flex-direction:column;gap:2px;border-left:2px solid var(--dsw-alias-border-l1);padding-left:8px}
-.mc-item-translated{border-left-color:var(--dsw-alias-brand-primary)}
-.mc-item-time{font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.mc-item-text{font-size:13px;line-height:1.45;color:var(--dsw-alias-label-secondary)}
-.mc-item-tr{font-size:13.5px;line-height:1.45;color:var(--dsw-alias-label-primary)}
-.mc-item-live{opacity:.72}
-.mc-minutes{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12.5px;line-height:1.55;
-  margin:0;padding:10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);max-height:240px;overflow:auto;
+.mc-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.55;overflow-wrap:anywhere}
+.mc-error{font-size:11px;color:var(--dsw-alias-state-error-primary);line-height:1.55;overflow-wrap:anywhere}
+.mc-warn{font-size:11px;color:var(--dsw-alias-state-warn-primary);line-height:1.55;overflow-wrap:anywhere}
+.mc-section-title{font-size:10.5px;letter-spacing:.07em;color:var(--dsw-alias-label-secondary);
+  display:flex;gap:8px;align-items:center;justify-content:space-between}
+.mc-minutes{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12px;line-height:1.55;
+  margin:0;padding:9px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);max-height:220px;overflow:auto;
   color:var(--dsw-alias-label-primary)}
-.mc-empty{font-size:12px;color:var(--dsw-alias-label-secondary)}
-.mc-primary-btn-lg{height:42px;width:100%;font-size:15px;font-weight:600;border-radius:10px}
-.mc-disclosure{pointer-events:auto;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;
-  height:34px;margin-top:2px;border:0;border-top:1px solid var(--dsw-alias-border-l1);border-radius:0;
-  background:transparent;color:var(--dsw-alias-label-secondary);font-size:12.5px;cursor:pointer;user-select:none}
-.mc-disclosure:hover{color:var(--dsw-alias-label-primary)}
-.mc-advanced{display:flex;flex-direction:column;gap:10px;padding-top:4px}
+.mc-empty{font-size:11.5px;color:var(--dsw-alias-label-secondary);padding:6px 0}
+.mc-advanced{display:flex;flex-direction:column;gap:9px;padding-top:9px;border-top:1px solid var(--dsw-alias-border-l1);margin-top:11px}
+/* Generic utilities kept for the advanced section, which stacks label over control. */
+.mc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--dsw-alias-label-secondary);flex:1 1 0;min-width:0}
+.mc-ghost-btn{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:29px;padding:0 11px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);
+  background:transparent;color:var(--dsw-alias-label-primary);font-size:11.5px;font-family:inherit;cursor:pointer}
+.mc-ghost-btn:hover:not([disabled]){background:var(--dsw-alias-bg-layer-2)}
+.mc-ghost-btn[disabled]{opacity:.45;cursor:not-allowed}
+.mc-ghost-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mc-advanced .mc-ghost-btn{align-self:flex-start}
 @media (max-width:1100px){
   .mc-dock{bottom:184px}
 }
 @media (max-width:720px){
   .mc-lyric{max-width:88vw;min-width:240px}
-  .mc-panel{width:min(92vw,392px);max-height:min(58vh,480px)}
-  .mc-primary-btn,.mc-ghost-btn{flex:1 1 auto}
+  .mc-panel{width:min(92vw,400px);max-height:min(62vh,520px)}
+  .mc-fbtn{flex:1 1 auto}
   .mc-records{inset:2vh 2vw}
 }
 `
@@ -698,6 +770,8 @@ window.__ModuleLoader__.load({
 
       const progress = asr.progress ?? {}
       const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
+      const elapsedMs = state?.session?.elapsedMs
+      const elapsedLabel = typeof elapsedMs === 'number' ? formatDuration(elapsedMs) : null
 
       // A stored position or size may come from another monitor, so both windows
       // are clamped fully inside the current viewport — otherwise a title bar
@@ -882,8 +956,34 @@ window.__ModuleLoader__.load({
             'aria-label': t('title'),
           }, [
             h('header', { className: 'mc-head', key: 'head' }, [
-              h('span', { className: 'mc-dot', key: 'dot', style: { background: statusColor(status) } }),
+              h('span', {
+                className: 'mc-dot', key: 'dot',
+                style: {
+                  background: statusColor(status),
+                  animation: running ? 'mc-pulse 2s infinite' : undefined,
+                },
+              }),
               h('span', { className: 'mc-head-title', key: 'title' }, t('title')),
+              h('span', { className: 'mc-head-status', key: 'status' },
+                asrBusy && !running ? t('preparing') : t(`status.${status}`)),
+              running && elapsedLabel !== null
+                ? h('span', { className: 'mc-timer', key: 'timer' }, elapsedLabel)
+                : null,
+              // The capture switch lives in the header: one visible on/off control
+              // instead of a full-width button pushing the settings down.
+              running || preparing
+                ? h('button', {
+                    className: 'mc-toggle', key: 'stop', type: 'button',
+                    disabled: busy !== '',
+                    onClick: () => command({ action: 'stop' }),
+                    title: t('stop'), 'aria-label': t('stop'),
+                  }, [h('span', { className: 'mc-toggle-mark', key: 'mark' }), t('stop')])
+                : h('button', {
+                    className: 'mc-start', key: 'start', type: 'button',
+                    disabled: busy !== '' || !asr.available,
+                    onClick: () => command({ action: 'start' }),
+                    title: t('start'), 'aria-label': t('start'),
+                  }, t('start')),
               h('button', {
                 className: 'mc-icon-btn', key: 'close', type: 'button',
                 onClick: () => setOpen(false), 'aria-label': t('close'), title: t('close'),
@@ -892,82 +992,7 @@ window.__ModuleLoader__.load({
 
             h('div', { className: 'mc-body', key: 'body' }, [
 
-              // One clear primary action.
-              running || preparing
-                ? h('button', {
-                    className: 'mc-primary-btn mc-primary-btn-lg', key: 'stop', type: 'button',
-                    disabled: busy !== '',
-                    onClick: () => command({ action: 'stop' }),
-                  }, t('stop'))
-                : h('button', {
-                    className: 'mc-primary-btn mc-primary-btn-lg', key: 'start', type: 'button',
-                    disabled: busy !== '' || !asr.available,
-                    onClick: () => command({ action: 'start' }),
-                  }, t('start')),
-
-              h('div', { className: 'mc-status', key: 'status' },
-                `${asrBusy && !running ? t('preparing') : t(`status.${status}`)}${asr.message ? ` · ${asr.message}` : ''}`),
-
-              // Core settings the user keeps on hand: source, source language,
-              // target language, and the translate switch.
-              h('div', { className: 'mc-row', key: 'essential' }, [
-                h('label', { className: 'mc-field', key: 'source' }, [
-                  h('span', { key: 'label' }, t('source')),
-                  h('select', {
-                    className: 'mc-select', key: 'select', value: settings.source,
-                    onChange: (event) => command({ action: 'settings', settings: { source: event.target.value } }),
-                  }, [
-                    h('option', { key: 'both', value: 'both' }, t('source.both')),
-                    h('option', { key: 'speaker', value: 'speaker' }, t('source.speaker')),
-                    h('option', { key: 'mic', value: 'mic' }, t('source.mic')),
-                  ]),
-                ]),
-                h('label', { className: 'mc-field', key: 'spoken' }, [
-                  h('span', { key: 'label' }, t('spoken')),
-                  h('select', {
-                    className: 'mc-select', key: 'select', value: settings.sourceLanguage,
-                    onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
-                  }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
-                ]),
-              ]),
-              h('div', { className: 'mc-row', key: 'essential2' }, [
-                h('label', {
-                  className: 'mc-field', key: 'translate',
-                  style: { flex: '1 1 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' },
-                }, [
-                  h('input', {
-                    key: 'checkbox', type: 'checkbox', checked: translateOn,
-                    onChange: (event) => command({ action: 'settings', settings: { translate: event.target.checked } }),
-                  }),
-                  h('span', { key: 'label' }, t('translate')),
-                ]),
-                translateOn
-                  ? h('label', { className: 'mc-field', key: 'target' }, [
-                      h('span', { key: 'label' }, t('target')),
-                      h('select', {
-                        className: 'mc-select', key: 'select', value: settings.targetLanguage,
-                        onChange: (event) => command({ action: 'settings', settings: { targetLanguage: event.target.value } }),
-                      }, TARGET_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
-                    ])
-                  : null,
-              ]),
-              translateOn ? null : h('div', { className: 'mc-hint', key: 'translate-off' }, t('translateOff')),
-
-              // Secondary actions.
-              h('div', { className: 'mc-row', key: 'secondary' }, [
-                h('button', {
-                  className: 'mc-ghost-btn', key: 'minutes', type: 'button',
-                  disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0,
-                  onClick: () => command({ action: 'minutes' }),
-                }, minutes.generating ? t('generating') : t('minutes')),
-                h('button', {
-                  className: 'mc-ghost-btn', key: 'records-popup', type: 'button',
-                  title: t('recordsTitle'), 'aria-label': t('recordsTitle'),
-                  onClick: () => { setRecordsOpen((value) => !value); if (!recordsOpen) void loadRecords() },
-                }, `⧉ ${t('records')}`),
-              ]),
-
-              // Alerts that block usage stay visible.
+              // Anything that blocks usage or needs attention stays above the fold.
               asr.available === false
                 ? h('div', { className: 'mc-error', key: 'asr-missing', role: 'alert' }, asr.message ?? '')
                 : null,
@@ -975,32 +1000,99 @@ window.__ModuleLoader__.load({
               state?.translationError ? h('div', { className: 'mc-error', key: 'tr-error' }, `${t('translationFailed')}: ${state.translationError}`) : null,
               (state?.warnings ?? []).map((warning, index) =>
                 h('div', { className: 'mc-warn', key: `warn-${index}` }, warning)),
+              asrBusy && percent !== null
+                ? h('div', {
+                    className: 'mc-progress', key: 'progress',
+                    role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent,
+                  }, h('span', { style: { width: `${percent}%` } }))
+                : null,
+              !modelReady && !asrBusy && asr.available
+                ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))
+                : null,
+
+              // Capture: the source is a three-way choice, so it is a segmented
+              // control; the spoken language is a lookup, so it stays a select.
+              h('div', { className: 'mc-grp', key: 'capture' }, [
+                h('span', { className: 'mc-cap', key: 'cap' }, t('source')),
+                h('div', { className: 'mc-seg', key: 'seg', role: 'group', 'aria-label': t('source') },
+                  [['both', t('source.both')], ['speaker', t('source.speaker')], ['mic', t('source.mic')]].map(([value, label]) =>
+                    h('button', {
+                      key: value, type: 'button',
+                      'aria-pressed': settings.source === value,
+                      onClick: () => command({ action: 'settings', settings: { source: value } }),
+                    }, label))),
+                h('div', { className: 'mc-irow', key: 'spoken' }, [
+                  h('span', { className: 'mc-lbl', key: 'lbl' }, t('spoken')),
+                  h('select', {
+                    className: 'mc-select', key: 'select', value: settings.sourceLanguage,
+                    'aria-label': t('spoken'),
+                    onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
+                  }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
+                ]),
+              ]),
+
+              // Translation: one switch owns the whole group, so the target
+              // language only exists while the switch is on.
+              h('div', { className: 'mc-grp', key: 'translation' }, [
+                h('div', { className: 'mc-irow', key: 'switch' }, [
+                  h('span', { className: 'mc-lbl-strong', key: 'lbl' }, t('translate')),
+                  translateOn && state?.engine?.label
+                    ? h('span', { className: 'mc-note', key: 'engine' }, state.engine.label)
+                    : null,
+                  h('button', {
+                    className: 'mc-sw', key: 'sw', type: 'button', role: 'switch',
+                    'aria-checked': translateOn, 'aria-label': t('translate'),
+                    onClick: () => command({ action: 'settings', settings: { translate: !translateOn } }),
+                  }),
+                ]),
+                translateOn
+                  ? h('div', { className: 'mc-irow', key: 'target' }, [
+                      h('span', { className: 'mc-lbl', key: 'lbl' }, t('target')),
+                      h('select', {
+                        className: 'mc-select', key: 'select', value: settings.targetLanguage,
+                        'aria-label': t('target'),
+                        onChange: (event) => command({ action: 'settings', settings: { targetLanguage: event.target.value } }),
+                      }, TARGET_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
+                    ])
+                  : h('div', { className: 'mc-hint', key: 'off' }, t('translateOff')),
+              ]),
 
               // Live transcript.
-              h('div', { className: 'mc-section-title', key: 'tr-title' }, [
-                h('span', { key: 'left' }, `${t('transcript')}${state?.totalEntries ? ` · ${state.totalEntries} ${t('lines')}` : ''}`),
-                state?.session
-                  ? h('span', { key: 'segments', style: { fontVariantNumeric: 'tabular-nums' } }, `${state.session.segments} ${t('segments')}`)
-                  : null,
+              h('div', { className: 'mc-grp', key: 'transcript' }, [
+                h('div', { className: 'mc-list-head', key: 'head' }, [
+                  h('span', { className: 'mc-cap', key: 'left' }, t('transcript')),
+                  h('span', {
+                    className: 'mc-cap', key: 'right',
+                    style: { fontVariantNumeric: 'tabular-nums' },
+                  }, [
+                    state?.totalEntries ? `${state.totalEntries} ${t('lines')}` : '',
+                    state?.session ? `${state.session.segments} ${t('segments')}` : '',
+                  ].filter(Boolean).join(' · ')),
+                ]),
+                entries.length === 0
+                  ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
+                  : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
+                      h('div', {
+                        className: `mc-tr-row${entry.live ? ' mc-tr-live' : ''}`, key: entry.seq,
+                      }, [
+                        h('span', { className: 'mc-tr-t', key: 'time' }, entry.at),
+                        h('div', { className: 'mc-tr-body', key: 'body' }, [
+                          h('div', { className: 'mc-tr-src', key: 'src' }, entry.text),
+                          translateOn && entry.translation
+                            ? h('div', { className: 'mc-tr-tr', key: 'tr' }, entry.translation)
+                            : null,
+                          entry.translationFailed
+                            ? h('div', { className: 'mc-tr-t', key: 'fail' }, t('translationFailed'))
+                            : null,
+                        ]),
+                      ]))),
               ]),
-              entries.length === 0
-                ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
-                : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
-                    h('div', { className: `mc-item${entry.translation ? ' mc-item-translated' : ''}`, key: entry.seq }, [
-                      h('span', { className: 'mc-item-time', key: 'time' }, entry.at),
-                      h('span', { className: 'mc-item-text', key: 'text' }, entry.text),
-                      entry.translation ? h('span', {
-                        className: `mc-item-tr${entry.live ? ' mc-item-live' : ''}`,
-                        key: 'tr',
-                      }, entry.translation) : null,
-                      entry.translationFailed ? h('span', { className: 'mc-item-time', key: 'fail' }, t('translationFailed')) : null,
-                    ]))),
 
               // Meeting minutes, only when there is a result.
               minutes.text
-                ? h('div', { key: 'minutes' }, [
-                    h('div', { className: 'mc-section-title', key: 'minutes-title' }, [
-                      h('span', { key: 'left' }, t('minutes')),
+                ? h('div', { className: 'mc-grp', key: 'minutes' }, [
+                    h('div', { className: 'mc-list-head', key: 'minutes-title' }, [
+                      h('span', { className: 'mc-cap', key: 'left' }, t('minutes')),
                       h('button', { className: 'mc-icon-btn', key: 'copy', type: 'button', onClick: copyMinutes, title: t('copy') }, copied ? t('copied') : t('copy')),
                     ]),
                     h('pre', { className: 'mc-minutes', key: 'text' }, minutes.text),
@@ -1009,34 +1101,26 @@ window.__ModuleLoader__.load({
               minutes.error ? h('div', { className: 'mc-error', key: 'minutes-error' }, minutes.error) : null,
               minutes.path ? h('div', { className: 'mc-hint', key: 'minutes-path', title: minutes.path }, `${t('minutesPath')}: ${minutes.path}`) : null,
 
-              // Everything else hides behind a single disclosure.
-              h('button', {
-                className: 'mc-disclosure', key: 'disclosure', type: 'button',
-                'aria-expanded': showAdvanced,
-                onClick: () => setShowAdvanced((value) => !value),
-              }, `${showAdvanced ? '▾' : '▸'} ${t('moreSettings')}`),
-
               showAdvanced
                 ? h('div', { className: 'mc-advanced', key: 'advanced' }, [
 
                     translateOn
-                      ? h('div', { className: 'mc-row', key: 'engine-row' }, [
-                          h('label', { className: 'mc-field', key: 'engine-select' }, [
-                            h('span', { key: 'label' }, t('engine')),
-                            h('select', {
-                              className: 'mc-select', key: 'select',
-                              value: settings.translateEngine === 'local'
-                                ? 'local'
-                                : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
-                              onChange: (event) => command({
-                                action: 'settings',
-                                settings: { translateEngine: event.target.value },
-                              }),
-                            }, [
-                              h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
-                              h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
-                              h('option', { key: 'local', value: 'local' }, t('engine.local')),
-                            ]),
+                      ? h('div', { className: 'mc-irow', key: 'engine-row' }, [
+                          h('span', { className: 'mc-lbl', key: 'label' }, t('engine')),
+                          h('select', {
+                            className: 'mc-select', key: 'select',
+                            'aria-label': t('engine'),
+                            value: settings.translateEngine === 'local'
+                              ? 'local'
+                              : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
+                            onChange: (event) => command({
+                              action: 'settings',
+                              settings: { translateEngine: event.target.value },
+                            }),
+                          }, [
+                            h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
+                            h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
+                            h('option', { key: 'local', value: 'local' }, t('engine.local')),
                           ]),
                         ])
                       : null,
@@ -1147,6 +1231,26 @@ window.__ModuleLoader__.load({
                   ])
                 : null,
             ]),
+
+            // Footer holds the three secondary destinations; the last one toggles
+            // the advanced group so the main body stays a straight read.
+            h('div', { className: 'mc-foot', key: 'foot' }, [
+              h('button', {
+                className: 'mc-fbtn', key: 'minutes', type: 'button',
+                disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0,
+                onClick: () => command({ action: 'minutes' }),
+              }, minutes.generating ? t('generating') : t('minutes')),
+              h('button', {
+                className: 'mc-fbtn', key: 'records', type: 'button',
+                title: t('recordsTitle'), 'aria-label': t('recordsTitle'),
+                onClick: () => { setRecordsOpen((value) => !value); if (!recordsOpen) void loadRecords() },
+              }, t('records')),
+              h('button', {
+                className: 'mc-fbtn icon', key: 'more', type: 'button',
+                'aria-expanded': showAdvanced, title: t('moreSettings'), 'aria-label': t('moreSettings'),
+                onClick: () => setShowAdvanced((value) => !value),
+              }, showAdvanced ? '▾' : '⋯'),
+            ]),
           ]) : null,
 
           h('button', {
@@ -1156,8 +1260,23 @@ window.__ModuleLoader__.load({
             'aria-label': t('open'),
             title: t('open'),
           }, [
-            h('span', { className: 'mc-dot', key: 'dot', style: { background: statusColor(status) } }),
+            h('span', {
+              className: 'mc-dot', key: 'dot',
+              style: {
+                background: statusColor(status),
+                animation: running ? 'mc-pulse 2s infinite' : undefined,
+              },
+            }),
             h('span', { key: 'label' }, t('title')),
+            running
+              ? h('span', { className: 'mc-bar', key: 'bars' },
+                  [0, 1, 2, 3].map((index) => h('i', { key: index })))
+              : null,
+            running && elapsedLabel !== null
+              ? h('span', { className: 'mc-timer', key: 'timer' }, elapsedLabel)
+              : null,
+            h('span', { key: 'chev', style: { color: 'var(--dsw-alias-label-secondary)', fontSize: '9px' } },
+              open ? '▾' : '▸'),
           ]),
         ]),
       ])
