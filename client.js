@@ -21,6 +21,8 @@ window.__ModuleLoader__.load({
         'minutes': 'Minutes',
         'generating': 'Writing minutes…',
         'clear': 'Clear',
+        'clearList': 'Clear transcript',
+        'clearHint': 'Empties the panel list and truncates this session\'s transcript file, so its records disappear too. An already exported minutes file stays on disk.',
         'confirmClear': 'Confirm clear?',
         'copy': 'Copy',
         'copied': 'Copied',
@@ -78,6 +80,7 @@ window.__ModuleLoader__.load({
         'download': 'Download',
         'loading': 'Loading',
         'loaded': 'Loaded',
+        'cancel': 'Cancel',
         'depsMissing': 'The built-in runtime (@huggingface/transformers) is not installed.',
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
@@ -115,6 +118,8 @@ window.__ModuleLoader__.load({
         'minutes': '生成纪要',
         'generating': '正在生成纪要…',
         'clear': '清空',
+        'clearList': '清空字幕列表',
+        'clearHint': '清空面板里的列表，并清空本次会话的转写文件（「记录」里也会消失）；已经导出的纪要文件仍在磁盘上。',
         'confirmClear': '确认清空？',
         'copy': '复制',
         'copied': '已复制',
@@ -172,6 +177,7 @@ window.__ModuleLoader__.load({
         'download': '下载',
         'loading': '加载中',
         'loaded': '已加载',
+        'cancel': '取消',
         'depsMissing': '内置推理依赖（@huggingface/transformers）未安装。',
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
@@ -476,6 +482,7 @@ window.__ModuleLoader__.load({
   animation:mc-spin .8s linear infinite}
 @keyframes mc-spin{to{transform:rotate(360deg)}}
 .mc-ok{flex:0 0 auto;font-size:14px;line-height:1;color:var(--dsw-alias-state-success-primary)}
+.mc-pct{flex:0 0 auto;font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
 .mc-input{pointer-events:auto;height:29px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);
   background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 8px;
   width:100%;box-sizing:border-box;font-family:inherit}
@@ -1393,7 +1400,18 @@ window.__ModuleLoader__.load({
                               key: model.id, value: model.id,
                             }, `${model.label} · ${model.sizeMb} MB${model.downloaded ? ` · ${t('downloaded')}` : ''}`))),
                             mtLoadingThis
-                              ? h('span', { className: 'mc-spin', key: 'spin', title: t('loading'), 'aria-label': t('loading') })
+                              ? [
+                                  h('span', {
+                                    className: 'mc-spin', key: 'spin',
+                                    title: t('loading'), 'aria-label': t('loading'),
+                                  }),
+                                  h('span', { className: 'mc-pct', key: 'pct' },
+                                    mtPercent === null ? formatBytes(mt.progress?.loaded ?? 0) : `${mtPercent}%`),
+                                  h('button', {
+                                    className: 'mc-ghost-btn', key: 'cancel', type: 'button',
+                                    onClick: () => command({ action: 'cancel_model' }),
+                                  }, t('cancel')),
+                                ]
                               : mtReadyThis || currentOffline?.downloaded
                                 ? h('span', { className: 'mc-ok', key: 'ok', title: t('loaded'), 'aria-label': t('loaded') }, '✓')
                                 : h('button', {
@@ -1481,22 +1499,27 @@ window.__ModuleLoader__.load({
                       ? h('div', { className: 'mc-hint', key: 'engine-label' }, state.engine.label)
                       : null,
 
-                    h('button', {
-                      className: 'mc-ghost-btn', key: 'clear', type: 'button',
-                      disabled: busy !== '' || entries.length === 0,
-                      onClick: () => {
-                        if (!clearArmed) {
-                          setClearArmed(true)
+                    // Destructive: it also truncates this session's transcript
+                    // file, so it keeps the two-step confirm and says so.
+                    h('div', { className: 'mc-grp', key: 'clear-group' }, [
+                      h('button', {
+                        className: 'mc-ghost-btn', key: 'clear', type: 'button',
+                        disabled: busy !== '' || entries.length === 0,
+                        onClick: () => {
+                          if (!clearArmed) {
+                            setClearArmed(true)
+                            clearTimeout(clearArmRef.current)
+                            clearArmRef.current = setTimeout(() => setClearArmed(false), 4000)
+                            return
+                          }
                           clearTimeout(clearArmRef.current)
-                          clearArmRef.current = setTimeout(() => setClearArmed(false), 4000)
-                          return
-                        }
-                        clearTimeout(clearArmRef.current)
-                        clearArmRef.current = null
-                        setClearArmed(false)
-                        void command({ action: 'clear' })
-                      },
-                    }, clearArmed ? t('confirmClear') : t('clear')),
+                          clearArmRef.current = null
+                          setClearArmed(false)
+                          void command({ action: 'clear' })
+                        },
+                      }, clearArmed ? t('confirmClear') : t('clearList')),
+                      h('div', { className: 'mc-hint', key: 'hint' }, t('clearHint')),
+                    ]),
                   ])
                 : null,
             ]),
