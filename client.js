@@ -61,6 +61,7 @@ window.__ModuleLoader__.load({
         'lang.ru': 'Russian',
         'lang.pt': 'Portuguese',
         'translate': 'Translate',
+        'translateOff': 'Translation is off: subtitles stay in the spoken language.',
         'engine': 'Translation engine',
         'engine.cloud': 'Cloud model',
         'engine.builtin': 'Built-in offline model',
@@ -141,6 +142,7 @@ window.__ModuleLoader__.load({
         'lang.ru': '俄文',
         'lang.pt': '葡萄牙文',
         'translate': '翻译字幕',
+        'translateOff': '未开启翻译：字幕只显示识别到的原文。',
         'engine': '翻译引擎',
         'engine.cloud': '云端默认模型',
         'engine.builtin': '内置离线模型',
@@ -684,6 +686,10 @@ window.__ModuleLoader__.load({
       const asrBusy = ['downloading', 'loading', 'waking', 'checking', 'cancelling'].includes(asr.phase)
       const latest = entries.length > 0 ? entries[entries.length - 1] : null
       const settings = state?.settings ?? { source: 'both', sourceLanguage: 'auto', targetLanguage: 'zh', translate: true }
+      // Target language and translation engine only mean something while
+      // translation is on, so they are disclosed with the switch instead of
+      // sitting there as a permanently disabled-looking pair of controls.
+      const translateOn = settings.translate !== false
       const minutes = state?.minutes ?? { generating: false, text: '', path: null, error: null }
       const mt = state?.mt ?? { state: 'idle', progress: {}, model: '', error: null }
       const mtPercent = mt.progress && mt.progress.total > 0
@@ -925,21 +931,27 @@ window.__ModuleLoader__.load({
                 ]),
               ]),
               h('div', { className: 'mc-row', key: 'essential2' }, [
-                h('label', { className: 'mc-field', key: 'target' }, [
-                  h('span', { key: 'label' }, t('target')),
-                  h('select', {
-                    className: 'mc-select', key: 'select', value: settings.targetLanguage,
-                    onChange: (event) => command({ action: 'settings', settings: { targetLanguage: event.target.value } }),
-                  }, TARGET_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
-                ]),
-                h('label', { className: 'mc-field', key: 'translate', style: { flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' } }, [
-                  h('span', { key: 'label' }, t('translate')),
+                h('label', {
+                  className: 'mc-field', key: 'translate',
+                  style: { flex: '1 1 auto', flexDirection: 'row', alignItems: 'center', gap: '6px' },
+                }, [
                   h('input', {
-                    key: 'checkbox', type: 'checkbox', checked: settings.translate !== false,
+                    key: 'checkbox', type: 'checkbox', checked: translateOn,
                     onChange: (event) => command({ action: 'settings', settings: { translate: event.target.checked } }),
                   }),
+                  h('span', { key: 'label' }, t('translate')),
                 ]),
+                translateOn
+                  ? h('label', { className: 'mc-field', key: 'target' }, [
+                      h('span', { key: 'label' }, t('target')),
+                      h('select', {
+                        className: 'mc-select', key: 'select', value: settings.targetLanguage,
+                        onChange: (event) => command({ action: 'settings', settings: { targetLanguage: event.target.value } }),
+                      }, TARGET_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
+                    ])
+                  : null,
               ]),
+              translateOn ? null : h('div', { className: 'mc-hint', key: 'translate-off' }, t('translateOff')),
 
               // Secondary actions.
               h('div', { className: 'mc-row', key: 'secondary' }, [
@@ -1007,27 +1019,29 @@ window.__ModuleLoader__.load({
               showAdvanced
                 ? h('div', { className: 'mc-advanced', key: 'advanced' }, [
 
-                    h('div', { className: 'mc-row', key: 'engine-row' }, [
-                      h('label', { className: 'mc-field', key: 'engine-select' }, [
-                        h('span', { key: 'label' }, t('engine')),
-                        h('select', {
-                          className: 'mc-select', key: 'select',
-                          value: settings.translateEngine === 'local'
-                            ? 'local'
-                            : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
-                          onChange: (event) => command({
-                            action: 'settings',
-                            settings: { translateEngine: event.target.value },
-                          }),
-                        }, [
-                          h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
-                          h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
-                          h('option', { key: 'local', value: 'local' }, t('engine.local')),
-                        ]),
-                      ]),
-                    ]),
+                    translateOn
+                      ? h('div', { className: 'mc-row', key: 'engine-row' }, [
+                          h('label', { className: 'mc-field', key: 'engine-select' }, [
+                            h('span', { key: 'label' }, t('engine')),
+                            h('select', {
+                              className: 'mc-select', key: 'select',
+                              value: settings.translateEngine === 'local'
+                                ? 'local'
+                                : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
+                              onChange: (event) => command({
+                                action: 'settings',
+                                settings: { translateEngine: event.target.value },
+                              }),
+                            }, [
+                              h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
+                              h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
+                              h('option', { key: 'local', value: 'local' }, t('engine.local')),
+                            ]),
+                          ]),
+                        ])
+                      : null,
 
-                    settings.translateEngine === 'local'
+                    translateOn && settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-row', key: 'local-fields' }, [
                           h('label', { className: 'mc-field', key: 'local-url' }, [
                             h('span', { key: 'label' }, t('localUrl')),
@@ -1049,10 +1063,10 @@ window.__ModuleLoader__.load({
                           ]),
                         ])
                       : null,
-                    settings.translateEngine === 'local'
+                    translateOn && settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-hint', key: 'local-hint' }, t('localHint'))
                       : null,
-                    settings.translateEngine === 'local'
+                    translateOn && settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-hint', key: 'local-note' }, t('engineLocalNote'))
                       : null,
 
@@ -1081,7 +1095,7 @@ window.__ModuleLoader__.load({
                       ? h('div', { className: 'mc-hint', key: 'hint' }, `${t('preparing')} · ${formatBytes(progress.completedBytes)}`)
                       : null,
 
-                    settings.translateEngine === 'builtin' && mt.state !== 'ready'
+                    translateOn && settings.translateEngine === 'builtin' && mt.state !== 'ready'
                       ? h('div', { className: 'mc-row', key: 'mt-status' }, [
                           h('div', { className: 'mc-hint', key: 'hint' },
                             mt.installing
@@ -1103,7 +1117,7 @@ window.__ModuleLoader__.load({
                             : null,
                         ])
                       : null,
-                    settings.translateEngine === 'builtin' && mt.state !== 'ready' && mtPercent !== null
+                    translateOn && settings.translateEngine === 'builtin' && mt.state !== 'ready' && mtPercent !== null
                       ? h('div', {
                           className: 'mc-progress', key: 'mt-progress',
                           role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
