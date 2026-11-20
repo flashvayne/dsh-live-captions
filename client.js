@@ -19,6 +19,8 @@ window.__ModuleLoader__.load({
         'firstRunHint': 'The recognition model is not bundled: the first Start downloads about 230 MB once (from hf-mirror in mainland China) and caches it on this machine. Audio is recognised locally and never uploaded.',
         'preparing': 'Preparing model',
         'minutes': 'Minutes',
+        'minutesHint': 'Open a new session with the transcript and the minutes prompt',
+        'minutesNoSession': 'Could not open a session directly; the prompt is on your clipboard.',
         'generating': 'Writing minutes…',
         'clear': 'Clear',
         'clearList': 'Clear transcript',
@@ -37,6 +39,7 @@ window.__ModuleLoader__.load({
         'tagSource': 'Source',
         'tagTarget': 'Translation',
         'records': 'Records',
+        'liveWindow': 'Live transcript',
         'moreSettings': 'More options',
         'recordsTitle': 'Caption records',
         'recordsEmpty': 'No records yet.',
@@ -116,6 +119,8 @@ window.__ModuleLoader__.load({
         'firstRunHint': '识别模型不在安装包里：首次点「开始」会下载约 230 MB（国内走 hf-mirror），之后本机缓存、不再联网；语音在本机识别，音频不会上传。',
         'preparing': '正在准备模型',
         'minutes': '生成纪要',
+        'minutesHint': '在新会话里打开转写和纪要提示词',
+        'minutesNoSession': '无法直接打开新会话，提示词已复制到剪贴板。',
         'generating': '正在生成纪要…',
         'clear': '清空',
         'clearList': '清空字幕列表',
@@ -134,6 +139,7 @@ window.__ModuleLoader__.load({
         'tagSource': '原文',
         'tagTarget': '译文',
         'records': '记录',
+        'liveWindow': '实时转写',
         'moreSettings': '更多设置',
         'recordsTitle': '字幕记录',
         'recordsEmpty': '还没有记录。',
@@ -339,9 +345,12 @@ window.__ModuleLoader__.load({
 .mc-lyric-tool-close{margin-left:auto;font-size:14px;line-height:1;padding-bottom:2px}
 .mc-lyric-body{display:flex;flex-direction:column;gap:12px;min-height:0;flex:1 1 auto;
   overflow-y:auto;overflow-x:hidden;padding-right:4px;overscroll-behavior:contain}
-.mc-lyric-entry{display:flex;flex-direction:column;gap:3px;padding-bottom:8px;
+.mc-lyric-entry{display:grid;grid-template-columns:auto 1fr;gap:8px;padding-bottom:8px;
   border-bottom:1px dashed var(--dsw-alias-border-l1)}
 .mc-lyric-entry:last-child{border-bottom:0;padding-bottom:0}
+.mc-lyric-time{font-size:calc(var(--mc-lyric-size,22px) * 0.45);line-height:1.4;padding-top:2px;
+  color:var(--dsw-alias-label-secondary);opacity:.75;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mc-lyric-lines{display:flex;flex-direction:column;gap:3px;min-width:0}
 .mc-lyric .mc-line-source{font-size:calc(var(--mc-lyric-size,22px) * 0.72);line-height:1.4;
   color:var(--dsw-alias-label-secondary);opacity:.85}
 .mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px);line-height:1.45;font-weight:600;
@@ -555,6 +564,9 @@ window.__ModuleLoader__.load({
       const [entries, setEntries] = useState([])
       const [open, setOpen] = useState(false)
       const [recordsOpen, setRecordsOpen] = useState(false)
+      // Detached live-transcript window; shares the records geometry on purpose
+      // so only one of the two is on screen at a time.
+      const [liveOpen, setLiveOpen] = useState(false)
       const [showAdvanced, setShowAdvanced] = useState(false)
       const [busy, setBusy] = useState('')
       const [notice, setNotice] = useState('')
@@ -565,6 +577,7 @@ window.__ModuleLoader__.load({
       const sessionRef = useRef(null)
       const aliveRef = useRef(true)
       const listRef = useRef(null)
+      const liveListRef = useRef(null)
 
       // Keep the transcript pinned to the newest line unless the reader scrolled up.
       useEffect(() => {
@@ -574,18 +587,27 @@ window.__ModuleLoader__.load({
         if (distance < 96) list.scrollTop = list.scrollHeight
       }, [entries.length])
 
+      // The detached window follows the newest line the same way.
+      useEffect(() => {
+        const list = liveListRef.current
+        if (list === null) return
+        const distance = list.scrollHeight - list.scrollTop - list.clientHeight
+        if (distance < 96) list.scrollTop = list.scrollHeight
+      }, [entries.length, liveOpen])
+
       // Escape closes the records pop-up first, then the panel; only one of the
       // two responds so the other stays open underneath.
       useEffect(() => {
-        if (!open && !recordsOpen) return undefined
+        if (!open && !recordsOpen && !liveOpen) return undefined
         const onKeyDown = (event) => {
           if (event.key !== 'Escape') return
-          if (recordsOpen) setRecordsOpen(false)
+          if (liveOpen) setLiveOpen(false)
+          else if (recordsOpen) setRecordsOpen(false)
           else setOpen(false)
         }
         document.addEventListener('keydown', onKeyDown)
         return () => document.removeEventListener('keydown', onKeyDown)
-      }, [open, recordsOpen])
+      }, [open, recordsOpen, liveOpen])
 
       const applyState = useCallback((next) => {
         if (!next) return
@@ -703,6 +725,36 @@ window.__ModuleLoader__.load({
       const recordsGrowRef = useRef(null)
 
       const save = useCallback((patch) => command({ action: 'settings', settings: patch }), [command])
+
+      /**
+       * "Generate minutes" now opens a fresh session with the transcript and the
+       * minutes instructions pre-filled, so the summary is an ordinary chat turn
+       * the user can steer — and the panel stays a reader.
+       */
+      const openMinutesSession = useCallback(async () => {
+        try {
+          const response = await fetch(`${API}/minutes-prompt`, { headers: { accept: 'application/json' } })
+          const payload = await response.json().catch(() => null)
+          if (!payload?.ok) {
+            setNotice(payload?.error ?? '生成纪要提示词失败')
+            return
+          }
+          const workspace = ctx?.uiWorkspace
+          if (workspace === undefined || typeof workspace.startSession !== 'function') {
+            try { await navigator.clipboard.writeText(payload.prompt) } catch { /* no clipboard */ }
+            setNotice(t('minutesNoSession'))
+            return
+          }
+          workspace.startSession(undefined, {
+            prompt: payload.prompt,
+            clearPreviousDraft: true,
+            whenDraftExists: 'replace',
+          })
+          setOpen(false)
+        } catch (error) {
+          setNotice(String(error?.message ?? error))
+        }
+      }, [ctx, t])
 
       /** Model pickers: one fetch is enough, the list changes with settings only. */
       const loadCatalog = useCallback(async () => {
@@ -1065,14 +1117,17 @@ window.__ModuleLoader__.load({
             entries.length === 0
               ? h('div', { className: 'mc-line mc-line-source', key: 'listening' }, t('listening'))
               : entries.slice(-60).map((entry) => h('div', { className: 'mc-lyric-entry', key: entry.seq }, [
-                  settings.lyricShowSource === false
-                    ? null
-                    : h('div', { className: 'mc-line mc-line-source', key: 'source' },
-                        h('span', { className: 'mc-line-text', key: 'text' }, entry.text)),
-                  settings.translate === false || (entry.translation !== null && entry.translation === entry.text)
-                    ? null
-                    : h('div', { className: 'mc-line mc-line-target', key: 'target' },
-                        h('span', { className: 'mc-line-text', key: 'text' }, entry.translation ?? '…')),
+                  h('span', { className: 'mc-lyric-time', key: 'time' }, entry.at ?? ''),
+                  h('div', { className: 'mc-lyric-lines', key: 'lines' }, [
+                    settings.lyricShowSource === false
+                      ? null
+                      : h('div', { className: 'mc-line mc-line-source', key: 'source' },
+                          h('span', { className: 'mc-line-text', key: 'text' }, entry.text)),
+                    settings.translate === false || (entry.translation !== null && entry.translation === entry.text)
+                      ? null
+                      : h('div', { className: 'mc-line mc-line-target', key: 'target' },
+                          h('span', { className: 'mc-line-text', key: 'text' }, entry.translation ?? '…')),
+                  ]),
                 ]))),
           lyricLocked ? null : LYRIC_RESIZE_EDGES.map((direction) => h('div', {
             className: `mc-lyric-resize mc-lyric-resize-${direction}`,
@@ -1083,6 +1138,46 @@ window.__ModuleLoader__.load({
             onPointerUp: endLyricResize,
             onPointerCancel: endLyricResize,
           })),
+        ]) : null,
+
+        liveOpen ? h('section', {
+          className: 'mc-record-window', key: 'live', role: 'dialog', 'aria-label': t('liveWindow'),
+          style: recordsStyle,
+        }, [
+          h('header', {
+            className: 'mc-records-head', key: 'head',
+            onPointerDown: beginRecordsMove,
+            onPointerMove: moveRecordsMove,
+            onPointerUp: endRecordsMove,
+          }, [
+            h('span', { className: 'mc-records-title', key: 'title' }, t('liveWindow')),
+            h('span', {
+              className: 'mc-hint', key: 'count',
+              style: { marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' },
+            }, `${state?.totalEntries ?? entries.length} ${t('lines')}`),
+            h('button', {
+              className: 'mc-icon-btn', key: 'close', type: 'button',
+              onClick: () => setLiveOpen(false), 'aria-label': t('close'), title: t('close'),
+            }, '×'),
+          ]),
+          h('div', { className: 'mc-records-list', key: 'list', ref: liveListRef },
+            entries.length === 0
+              ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
+              : entries.slice(-200).map((entry) => h('div', { className: 'mc-record', key: entry.seq }, [
+                  h('span', { className: 'mc-record-time', key: 'time' }, entry.at ?? ''),
+                  h('div', { className: 'mc-record-texts', key: 'texts' }, [
+                    h('span', { className: 'mc-record-src', key: 'src' }, entry.text),
+                    entry.translation && entry.translation !== entry.text
+                      ? h('span', { className: 'mc-record-tr', key: 'tr' }, entry.translation)
+                      : null,
+                  ]),
+                ]))),
+          h('div', {
+            className: 'mc-window-resize', key: 'resize', title: t('resize'),
+            onPointerDown: beginRecordsResize,
+            onPointerMove: moveRecordsResize,
+            onPointerUp: endRecordsResize,
+          }),
         ]) : null,
 
         recordsOpen ? h('section', {
@@ -1275,11 +1370,22 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'mc-cap', key: 'left' }, t('transcript')),
                   h('span', {
                     className: 'mc-cap', key: 'right',
-                    style: { fontVariantNumeric: 'tabular-nums' },
+                    style: { fontVariantNumeric: 'tabular-nums', marginLeft: 'auto' },
                   }, [
                     state?.totalEntries ? `${state.totalEntries} ${t('lines')}` : '',
                     state?.session ? `${state.session.segments} ${t('segments')}` : '',
                   ].filter(Boolean).join(' · ')),
+                  // A detached window is useful when the panel closes mid-meeting:
+                  // it keeps mirroring the live list as new lines arrive.
+                  h('button', {
+                    className: 'mc-icon-btn', key: 'popup', type: 'button',
+                    title: t('liveWindow'), 'aria-label': t('liveWindow'),
+                    'aria-pressed': liveOpen,
+                    onClick: () => {
+                      setLiveOpen((value) => !value)
+                      setRecordsOpen(false)
+                    },
+                  }, '⧉'),
                 ]),
                 entries.length === 0
                   ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
@@ -1529,13 +1635,14 @@ window.__ModuleLoader__.load({
             h('div', { className: 'mc-foot', key: 'foot' }, [
               h('button', {
                 className: 'mc-fbtn', key: 'minutes', type: 'button',
-                disabled: busy !== '' || minutes.generating || (state?.totalEntries ?? 0) === 0,
-                onClick: () => command({ action: 'minutes' }),
-              }, minutes.generating ? t('generating') : t('minutes')),
+                title: t('minutesHint'), 'aria-label': t('minutesHint'),
+                disabled: busy !== '' || (state?.totalEntries ?? 0) === 0,
+                onClick: () => void openMinutesSession(),
+              }, t('minutes')),
               h('button', {
                 className: 'mc-fbtn', key: 'records', type: 'button',
                 title: t('recordsTitle'), 'aria-label': t('recordsTitle'),
-                onClick: () => { setRecordsOpen((value) => !value); if (!recordsOpen) void loadRecords() },
+                onClick: () => { setRecordsOpen((value) => !value); setLiveOpen(false); if (!recordsOpen) void loadRecords() },
               }, t('records')),
               h('button', {
                 className: 'mc-fbtn icon', key: 'more', type: 'button',
