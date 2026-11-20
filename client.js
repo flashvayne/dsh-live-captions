@@ -181,6 +181,7 @@ window.__ModuleLoader__.load({
 
     const TARGET_LANGUAGES = ['zh', 'en', 'ja', 'ko', 'yue', 'es', 'fr', 'de', 'ru', 'pt']
     const SOURCE_LANGUAGES = ['auto', 'zh', 'en', 'yue', 'ja', 'ko']
+    const LYRIC_RESIZE_EDGES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 
     function localeId(ctx) {
       try {
@@ -220,6 +221,18 @@ window.__ModuleLoader__.load({
       return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`
     }
 
+    /**
+     * First-run overlay size, derived from the viewport so it reads well on a
+     * laptop at 100% and on a scaled 4K panel, where CSS pixels are already
+     * smaller than the physical ones.
+     */
+    function autoLyricSize(viewportW, viewportH) {
+      return {
+        w: Math.round(Math.min(900, Math.max(480, viewportW * 0.46))),
+        h: Math.round(Math.min(340, Math.max(170, viewportH * 0.30))),
+      }
+    }
+
     function statusColor(status) {
       if (status === 'running') return 'var(--dsw-alias-state-success-primary)'
       if (status === 'error') return 'var(--dsw-alias-state-error-primary)'
@@ -257,13 +270,15 @@ window.__ModuleLoader__.load({
   color:var(--dsw-alias-label-secondary);opacity:.85}
 .mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px);line-height:1.45;font-weight:600;
   color:var(--dsw-alias-label-primary)}
-.mc-lyric-resize{position:absolute;right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize;
-  pointer-events:auto;border-bottom-right-radius:12px;opacity:.5;transition:opacity .12s,background-color .12s;
-  background-image:
-    linear-gradient(135deg,transparent 52%,var(--dsw-alias-label-secondary) 52%,var(--dsw-alias-label-secondary) 58%,transparent 58%),
-    linear-gradient(135deg,transparent 70%,var(--dsw-alias-label-secondary) 70%,var(--dsw-alias-label-secondary) 76%,transparent 76%)}
-.mc-lyric:hover .mc-lyric-resize{opacity:.85}
-.mc-lyric-resize:hover{opacity:1;background-color:var(--dsw-alias-bg-layer-2)}
+.mc-lyric-resize{position:absolute;z-index:2;pointer-events:auto;background:transparent}
+.mc-lyric-resize-n{top:0;left:12px;right:12px;height:5px;cursor:n-resize}
+.mc-lyric-resize-s{bottom:0;left:12px;right:12px;height:5px;cursor:s-resize}
+.mc-lyric-resize-e{top:12px;bottom:12px;right:0;width:5px;cursor:e-resize}
+.mc-lyric-resize-w{top:12px;bottom:12px;left:0;width:5px;cursor:w-resize}
+.mc-lyric-resize-ne{top:0;right:0;width:12px;height:12px;cursor:ne-resize}
+.mc-lyric-resize-nw{top:0;left:0;width:12px;height:12px;cursor:nw-resize}
+.mc-lyric-resize-se{bottom:0;right:0;width:12px;height:12px;cursor:se-resize}
+.mc-lyric-resize-sw{bottom:0;left:0;width:12px;height:12px;cursor:sw-resize}
 .mc-lyric-badge{position:absolute;left:8px;top:-9px;font-size:10px;line-height:1.6;padding:0 6px;border-radius:999px;
   background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);pointer-events:auto;cursor:pointer}
 .mc-record-window{position:fixed;z-index:30;display:flex;flex-direction:column;min-width:320px;min-height:240px;
@@ -657,12 +672,25 @@ window.__ModuleLoader__.load({
         if (drag !== null && typeof drag.x === 'number') save({ lyricX: drag.x, lyricY: drag.y })
       }
 
-      const beginLyricResize = (event) => {
+      const LYRIC_MIN_W = 320
+      const LYRIC_MIN_H = 140
+
+      // Every edge and corner resizes, so `direction` names the sides to move.
+      const beginLyricResize = (direction) => (event) => {
         event.stopPropagation()
         const box = lyricRef.current
         if (box === null) return
         const rect = box.getBoundingClientRect()
-        resizeRef.current = { startX: event.clientX, startY: event.clientY, w0: rect.width, h0: rect.height, w: rect.width, h: rect.height }
+        // Pin the box to explicit left/top first: a west or north drag has to be
+        // able to move the origin, which a centred box has no anchor for.
+        setLyricPos({ x: rect.left, y: rect.top })
+        resizeRef.current = {
+          dir: direction,
+          startX: event.clientX, startY: event.clientY,
+          x0: rect.left, y0: rect.top,
+          w0: rect.width, h0: rect.height,
+          x: rect.left, y: rect.top, w: rect.width, h: rect.height,
+        }
         try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
         event.preventDefault()
       }
@@ -670,22 +698,50 @@ window.__ModuleLoader__.load({
       const moveLyricResize = (event) => {
         const resize = resizeRef.current
         if (resize === null) return
-        const maxW = (window.innerWidth ?? 1200) - 16
-        const maxH = (window.innerHeight ?? 800) - 16
-        const w = Math.max(320, Math.min(maxW, resize.w0 + (event.clientX - resize.startX)))
-        const h = Math.max(140, Math.min(maxH, resize.h0 + (event.clientY - resize.startY)))
+        const viewportW = window.innerWidth ?? 1200
+        const viewportH = window.innerHeight ?? 800
+        const maxW = viewportW - 16
+        const maxH = viewportH - 16
+        const dx = event.clientX - resize.startX
+        const dy = event.clientY - resize.startY
+        const dir = resize.dir
+        let w = resize.w0
+        let h = resize.h0
+        let x = resize.x0
+        let y = resize.y0
+        if (dir.includes('e')) w = Math.min(maxW, Math.max(LYRIC_MIN_W, resize.w0 + dx))
+        if (dir.includes('w')) {
+          w = Math.min(maxW, Math.max(LYRIC_MIN_W, resize.w0 - dx))
+          x = resize.x0 + (resize.w0 - w)
+        }
+        if (dir.includes('s')) h = Math.min(maxH, Math.max(LYRIC_MIN_H, resize.h0 + dy))
+        if (dir.includes('n')) {
+          h = Math.min(maxH, Math.max(LYRIC_MIN_H, resize.h0 - dy))
+          y = resize.y0 + (resize.h0 - h)
+        }
+        // Growing from a west/north edge must not push the box off-screen.
+        x = Math.max(8, Math.min(viewportW - w - 8, x))
+        y = Math.max(8, Math.min(viewportH - h - 8, y))
         resize.w = w
         resize.h = h
+        resize.x = x
+        resize.y = y
         setLyricSize({ w, h })
+        setLyricPos({ x, y })
       }
 
       const endLyricResize = () => {
         const resize = resizeRef.current
         resizeRef.current = null
         if (resize === null) return
-        // A click on the grip without dragging must not inflate the box.
-        if (resize.w === resize.w0 && resize.h === resize.h0) return
-        save({ lyricW: Math.round(resize.w), lyricH: Math.round(resize.h) })
+        const changed = resize.w !== resize.w0 || resize.h !== resize.h0
+          || resize.x !== resize.x0 || resize.y !== resize.y0
+        // A click on an edge without dragging must not rewrite the geometry.
+        if (!changed) return
+        save({
+          lyricW: Math.round(resize.w), lyricH: Math.round(resize.h),
+          lyricX: Math.round(resize.x), lyricY: Math.round(resize.y),
+        })
       }
 
       /** Follow the newest line unless the reader scrolled up inside the box. */
@@ -797,8 +853,12 @@ window.__ModuleLoader__.load({
       const clampY = (value, height) => Math.max(8, Math.min(viewportH - height - 8, value))
       const lyricX = lyricPos === null ? settings.lyricX : lyricPos.x
       const lyricY = lyricPos === null ? settings.lyricY : lyricPos.y
-      const lyricW = Math.min(lyricSize === null ? (settings.lyricW ?? 720) : lyricSize.w, viewportW - 16)
-      const lyricH = Math.min(lyricSize === null ? (settings.lyricH ?? 280) : lyricSize.h, viewportH - 16)
+      // A stored size wins; otherwise the box fits the current window.
+      const autoSize = autoLyricSize(viewportW, viewportH)
+      const seedW = Number.isFinite(settings.lyricW) ? settings.lyricW : autoSize.w
+      const seedH = Number.isFinite(settings.lyricH) ? settings.lyricH : autoSize.h
+      const lyricW = Math.min(lyricSize === null ? seedW : lyricSize.w, viewportW - 16)
+      const lyricH = Math.min(lyricSize === null ? seedH : lyricSize.h, viewportH - 16)
       const lyricLocked = settings.lyricLocked === true
       const lyricVisible = settings.lyricVisible !== false
       const lyricStyle = {
@@ -908,12 +968,15 @@ window.__ModuleLoader__.load({
                     : h('div', { className: 'mc-line mc-line-target', key: 'target' },
                         h('span', { className: 'mc-line-text', key: 'text' }, entry.translation ?? '…')),
                 ]))),
-          lyricLocked ? null : h('div', {
-            className: 'mc-lyric-resize', key: 'resize', title: t('resize'),
-            onPointerDown: beginLyricResize,
+          lyricLocked ? null : LYRIC_RESIZE_EDGES.map((direction) => h('div', {
+            className: `mc-lyric-resize mc-lyric-resize-${direction}`,
+            key: `resize-${direction}`,
+            title: t('resize'),
+            onPointerDown: beginLyricResize(direction),
             onPointerMove: moveLyricResize,
             onPointerUp: endLyricResize,
-          }),
+            onPointerCancel: endLyricResize,
+          })),
         ]) : null,
 
         recordsOpen ? h('section', {
