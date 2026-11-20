@@ -223,9 +223,9 @@ window.__ModuleLoader__.load({
 
     /**
      * First-run overlay size. Derived from the subtitle font size so the box
-     * fits three bilingual pairs without clipping, and capped so it stays a
-     * subtitle strip rather than a window: the width follows a readable line
-     * length (~34 CJK characters), not a share of the screen.
+     * shows two full bilingual pairs with the next one peeking in, and capped
+     * so it stays a subtitle strip: the width follows a readable line length
+     * (~34 CJK characters), not a share of the screen.
      *
      * Height budget: 10 top pad + 31 tool row + 6 flex gap + entries + 10 bottom
      * pad, where one pair is source (0.72x at 1.4) + target (1.45) + 3 gap
@@ -234,11 +234,21 @@ window.__ModuleLoader__.load({
     function autoLyricSize(fontSize, viewportW, viewportH) {
       const size = Number.isFinite(fontSize) ? fontSize : 22
       const pair = size * 2.46 + 12
-      const entries = pair * 3 + 12 * 2
+      const entries = pair * 2.5 + 12
       return {
         w: Math.round(Math.min(880, Math.max(560, size * 34), viewportW * 0.82)),
-        h: Math.round(Math.min(420, Math.max(200, 58 + entries), viewportH * 0.5)),
+        h: Math.round(Math.min(360, Math.max(190, 58 + entries), viewportH * 0.5)),
       }
+    }
+
+    /**
+     * Default resting place for an unpositioned box: horizontally centred, a
+     * fixed fraction up from the bottom so it clears the composer on a short
+     * window without hugging the bottom edge on a tall one.
+     */
+    function autoLyricBottom(viewportH) {
+      const height = Number.isFinite(viewportH) ? viewportH : 800
+      return Math.round(Math.min(180, Math.max(88, height * 0.12)))
     }
 
     /**
@@ -686,7 +696,7 @@ window.__ModuleLoader__.load({
 
       const beginDrag = (event) => {
         if (event.button !== 0) return
-        if (event.target?.closest?.('button, select, input, textarea, a, .mc-lyric-tools, .mc-lyric-resize')) return
+        if (event.target?.closest?.('button, select, input, textarea, a, .mc-lyric-resize')) return
         const rect = event.currentTarget.getBoundingClientRect()
         dragRef.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top }
         try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not supported */ }
@@ -894,7 +904,7 @@ window.__ModuleLoader__.load({
         width: `${lyricW}px`,
         height: `${lyricH}px`,
         ...(typeof lyricX !== 'number' || typeof lyricY !== 'number'
-          ? { left: '50%', bottom: '172px', transform: 'translateX(-50%)' }
+          ? { left: '50%', bottom: `${autoLyricBottom(viewportH)}px`, transform: 'translateX(-50%)' }
           : { left: `${clampX(lyricX, lyricW)}px`, top: `${clampY(lyricY, lyricH)}px` }),
       }
       const recordsStyle = (() => {
