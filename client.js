@@ -75,11 +75,10 @@ window.__ModuleLoader__.load({
         'modelsFailed': 'Could not load the model list',
         'offlineModel': 'Offline model',
         'downloaded': 'downloaded',
-        'load': 'Load',
         'download': 'Download',
         'loading': 'Loading',
+        'loaded': 'Loaded',
         'depsMissing': 'The built-in runtime (@huggingface/transformers) is not installed.',
-        'cacheDirHint': 'Weights download once into the plugin data folder and stay usable offline.',
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
         'retry': 'Retry',
@@ -170,11 +169,10 @@ window.__ModuleLoader__.load({
         'modelsFailed': '读取模型列表失败',
         'offlineModel': '离线模型',
         'downloaded': '已下载',
-        'load': '加载',
         'download': '下载',
         'loading': '加载中',
+        'loaded': '已加载',
         'depsMissing': '内置推理依赖（@huggingface/transformers）未安装。',
-        'cacheDirHint': '权重只下载一次，存在插件数据目录里，之后离线可用。',
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
         'retry': '重试',
@@ -472,6 +470,12 @@ window.__ModuleLoader__.load({
   padding:0 6px;width:100%;font-family:inherit}
 .mc-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .mc-irow .mc-select{width:148px;flex:0 0 148px;margin-left:auto}
+.mc-irow .mc-select.grow{width:100%;flex:1 1 auto;margin-left:0}
+.mc-spin{width:13px;height:13px;flex:0 0 auto;border-radius:50%;
+  border:2px solid var(--dsw-alias-border-l2);border-top-color:var(--dsw-alias-brand-primary);
+  animation:mc-spin .8s linear infinite}
+@keyframes mc-spin{to{transform:rotate(360deg)}}
+.mc-ok{flex:0 0 auto;font-size:14px;line-height:1;color:var(--dsw-alias-state-success-primary)}
 .mc-input{pointer-events:auto;height:29px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);
   background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;padding:0 8px;
   width:100%;box-sizing:border-box;font-family:inherit}
@@ -708,6 +712,13 @@ window.__ModuleLoader__.load({
         void loadCatalog()
       }, [loadCatalog])
 
+      // Opening the advanced group retries the catalog: a failed first fetch (the
+      // page may load before the profile finishes mounting its providers) should
+      // not leave an empty picker for the rest of the session.
+      useEffect(() => {
+        if (showAdvanced) void loadCatalog()
+      }, [showAdvanced, loadCatalog])
+
       const loadRecords = useCallback(async (sessionId) => {
         try {
           const query = typeof sessionId === 'string' && sessionId !== '' ? `?session=${encodeURIComponent(sessionId)}` : ''
@@ -918,7 +929,14 @@ window.__ModuleLoader__.load({
       const offlineModels = mt.models ?? []
       const currentOffline = offlineModels.find((entry) => entry.id === settings.builtinModel)
         ?? offlineModels[0] ?? null
-      const mtLoading = mt.state === 'loading'
+      // Progress and readiness only speak for the model the user currently has
+      // selected; a stale child for the previous model must not show a spinner.
+      const mtLoadingThis = mt.state === 'loading' && mt.model === settings.builtinModel
+      const mtReadyThis = mt.state === 'ready' && mt.model === settings.builtinModel
+      // Providers with no model to offer are noise: the session's own selector
+      // never lists them either.
+      const cloudProviders = (catalog?.cloud?.providers ?? [])
+        .filter((route) => (route.models ?? []).length > 0)
 
       const progress = asr.progress ?? {}
       const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
@@ -1227,6 +1245,14 @@ window.__ModuleLoader__.load({
               h('div', { className: 'mc-grp', key: 'overlay' }, [
                 h('div', { className: 'mc-irow', key: 'switch' }, [
                   h('span', { className: 'mc-lbl-strong', key: 'lbl' }, t('overlay')),
+                  // A locked overlay is click-through, so its own tools are out of
+                  // reach: unlocking has to live here.
+                  lyricLocked
+                    ? h('button', {
+                        className: 'mc-ghost-btn', key: 'unlock', type: 'button',
+                        onClick: () => save({ lyricLocked: false }),
+                      }, t('unlock'))
+                    : null,
                   h('button', {
                     className: 'mc-sw', key: 'sw', type: 'button', role: 'switch',
                     'aria-checked': lyricVisible, 'aria-label': t('overlay'),
@@ -1331,7 +1357,7 @@ window.__ModuleLoader__.load({
                             },
                           }, [
                             h('option', { key: 'default', value: '' }, t('followDefault')),
-                            ...(catalog?.cloud?.providers ?? []).map((route) =>
+                            ...cloudProviders.map((route) =>
                               h('optgroup', {
                                 key: route.id, label: route.name,
                               }, (route.models ?? []).map((model) =>
@@ -1350,40 +1376,45 @@ window.__ModuleLoader__.load({
                       : null,
 
                     settings.translateEngine === 'builtin'
-                      ? h('label', { className: 'mc-field', key: 'offline-model' }, [
-                          h('span', { key: 'label' }, t('offlineModel')),
-                          h('select', {
-                            className: 'mc-select', key: 'select',
-                            'aria-label': t('offlineModel'),
-                            value: settings.builtinModel ?? '',
-                            onChange: (event) => void command({
-                              action: 'settings', settings: { builtinModel: event.target.value },
-                            }),
-                          }, offlineModels.map((model) => h('option', {
-                            key: model.id, value: model.id,
-                          }, `${model.label} · ${model.sizeMb} MB${model.downloaded ? ` · ${t('downloaded')}` : ''}`))),
-                        ])
-                      : null,
-                    settings.translateEngine === 'builtin'
-                      ? h('div', { className: 'mc-grp', key: 'offline-detail' }, [
-                          h('div', { className: 'mc-hint', key: 'meta' },
-                            [currentOffline?.detail, currentOffline?.license].filter(Boolean).join(' · ')),
-                          h('div', { className: 'mc-irow', key: 'actions' }, [
-                            h('button', {
-                              className: 'mc-ghost-btn', key: 'download', type: 'button',
-                              disabled: busy !== '' || mtLoading || mt.installing,
-                              onClick: () => command({ action: 'download_model', model: settings.builtinModel }),
-                            }, mtLoading ? t('loading') : currentOffline?.downloaded ? t('load') : t('download')),
-                            mt.depsInstalled === false && !mt.installing
-                              ? h('span', { className: 'mc-hint', key: 'deps' }, t('depsMissing'))
-                              : null,
-                            mt.depsInstalled === false && !mt.installing
-                              ? h('button', {
+                      ? h('div', { className: 'mc-grp', key: 'offline-model' }, [
+                          h('span', { className: 'mc-cap', key: 'cap' }, t('offlineModel')),
+                          // The download button / load state sits at the right of the
+                          // picker: choosing a model loads it, and the icon tells the
+                          // user whether that is still running or done.
+                          h('div', { className: 'mc-irow', key: 'row' }, [
+                            h('select', {
+                              className: 'mc-select grow', key: 'select',
+                              'aria-label': t('offlineModel'),
+                              value: settings.builtinModel ?? '',
+                              onChange: (event) => void command({
+                                action: 'settings', settings: { builtinModel: event.target.value },
+                              }),
+                            }, offlineModels.map((model) => h('option', {
+                              key: model.id, value: model.id,
+                            }, `${model.label} · ${model.sizeMb} MB${model.downloaded ? ` · ${t('downloaded')}` : ''}`))),
+                            mtLoadingThis
+                              ? h('span', { className: 'mc-spin', key: 'spin', title: t('loading'), 'aria-label': t('loading') })
+                              : mtReadyThis || currentOffline?.downloaded
+                                ? h('span', { className: 'mc-ok', key: 'ok', title: t('loaded'), 'aria-label': t('loaded') }, '✓')
+                                : h('button', {
+                                    className: 'mc-ghost-btn', key: 'download', type: 'button',
+                                    disabled: busy !== '' || mt.installing,
+                                    onClick: () => command({ action: 'download_model', model: settings.builtinModel }),
+                                  }, t('download')),
+                          ]),
+                          currentOffline
+                            ? h('div', { className: 'mc-hint', key: 'meta' },
+                                [currentOffline.detail, currentOffline.license].filter(Boolean).join(' · '))
+                            : null,
+                          mt.depsInstalled === false && !mt.installing
+                            ? h('div', { className: 'mc-irow', key: 'deps' }, [
+                                h('span', { className: 'mc-hint', key: 'hint' }, t('depsMissing')),
+                                h('button', {
                                   className: 'mc-ghost-btn', key: 'install', type: 'button',
                                   onClick: () => command({ action: 'install_mt_deps' }),
-                                }, t('downloadDeps'))
-                              : null,
-                          ]),
+                                }, t('downloadDeps')),
+                              ])
+                            : null,
                           mt.installing
                             ? h('div', { className: 'mc-hint', key: 'installing' },
                                 mt.installProgress?.message ?? t('mtPreparing'))
@@ -1391,17 +1422,16 @@ window.__ModuleLoader__.load({
                           mt.state === 'failed'
                             ? h('div', { className: 'mc-error', key: 'failed' }, `${t('mtFailed')}：${mt.error ?? ''}`)
                             : null,
-                          mtLoading && mtPercent !== null
+                          mtLoadingThis && mtPercent !== null
                             ? h('div', {
                                 className: 'mc-progress', key: 'progress',
                                 role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
                               }, h('span', { style: { width: `${mtPercent}%` } }))
                             : null,
-                          mtLoading && mtPercent === null
+                          mtLoadingThis && mtPercent === null
                             ? h('div', { className: 'mc-hint', key: 'preparing' },
                                 `${t('mtPreparing')} · ${formatBytes(mt.progress?.loaded ?? 0)}`)
                             : null,
-                          h('div', { className: 'mc-hint', key: 'cache' }, t('cacheDirHint')),
                         ])
                       : null,
 
@@ -1433,18 +1463,6 @@ window.__ModuleLoader__.load({
                     settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-hint', key: 'local-note' }, t('engineLocalNote'))
                       : null,
-
-                    h('div', { className: 'mc-row', key: 'lyric-tools' }, [
-                      h('button', {
-                        className: 'mc-ghost-btn', key: 'lyric-lock', type: 'button',
-                        onClick: () => save({ lyricLocked: !lyricLocked }),
-                      }, lyricLocked ? t('unlock') : t('lock')),
-                      h('button', {
-                        className: 'mc-ghost-btn', key: 'lyric-reset', type: 'button',
-                        onClick: () => { setLyricPos(null); setLyricSize(null); save({ lyricReset: true }) },
-                      }, t('resetPos')),
-                    ]),
-                    lyricLocked ? h('div', { className: 'mc-hint', key: 'locked-hint' }, t('lockedHint')) : null,
 
                     !modelReady && !asrBusy && asr.available
                       ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))
