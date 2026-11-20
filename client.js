@@ -222,15 +222,55 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * First-run overlay size, derived from the viewport so it reads well on a
-     * laptop at 100% and on a scaled 4K panel, where CSS pixels are already
-     * smaller than the physical ones.
+     * First-run overlay size. Derived from the subtitle font size so the box
+     * fits three bilingual pairs without clipping, and capped so it stays a
+     * subtitle strip rather than a window: the width follows a readable line
+     * length (~34 CJK characters), not a share of the screen.
+     *
+     * Height budget: 10 top pad + 31 tool row + 6 flex gap + entries + 10 bottom
+     * pad, where one pair is source (0.72x at 1.4) + target (1.45) + 3 gap
+     * + 8 padding + 1 border, and pairs sit 12px apart.
      */
-    function autoLyricSize(viewportW, viewportH) {
+    function autoLyricSize(fontSize, viewportW, viewportH) {
+      const size = Number.isFinite(fontSize) ? fontSize : 22
+      const pair = size * 2.46 + 12
+      const entries = pair * 3 + 12 * 2
       return {
-        w: Math.round(Math.min(900, Math.max(480, viewportW * 0.46))),
-        h: Math.round(Math.min(340, Math.max(170, viewportH * 0.30))),
+        w: Math.round(Math.min(880, Math.max(560, size * 34), viewportW * 0.82)),
+        h: Math.round(Math.min(420, Math.max(200, 58 + entries), viewportH * 0.5)),
       }
+    }
+
+    /**
+     * Pure geometry for an edge drag: the next box rect for `dir` ('n','se',…).
+     * West and north drags keep the opposite edge anchored — x + w (or y + h)
+     * stays constant — and no drag can push the box outside the viewport.
+     */
+    function resizeLyricBox(state, dir, dx, dy, bounds) {
+      let w = state.w0
+      let h = state.h0
+      let x = state.x0
+      let y = state.y0
+      if (dir.includes('e')) {
+        // The right edge only has the space between the left edge and the screen.
+        const maxW = Math.min(bounds.maxW, bounds.viewportW - 8 - state.x0)
+        w = Math.min(maxW, Math.max(bounds.minW, state.w0 + dx))
+      }
+      if (dir.includes('w')) {
+        const maxW = Math.min(bounds.maxW, state.x0 + state.w0 - 8)
+        w = Math.min(maxW, Math.max(bounds.minW, state.w0 - dx))
+        x = state.x0 + (state.w0 - w)
+      }
+      if (dir.includes('s')) {
+        const maxH = Math.min(bounds.maxH, bounds.viewportH - 8 - state.y0)
+        h = Math.min(maxH, Math.max(bounds.minH, state.h0 + dy))
+      }
+      if (dir.includes('n')) {
+        const maxH = Math.min(bounds.maxH, state.y0 + state.h0 - 8)
+        h = Math.min(maxH, Math.max(bounds.minH, state.h0 - dy))
+        y = state.y0 + (state.h0 - h)
+      }
+      return { x, y, w, h }
     }
 
     function statusColor(status) {
@@ -246,7 +286,7 @@ window.__ModuleLoader__.load({
 .mc-line-text{min-width:0;overflow-wrap:anywhere}
 .mc-line-source{font-size:16px;line-height:1.45;color:var(--dsw-alias-label-secondary)}
 .mc-line-target{font-size:19px;line-height:1.45;font-weight:600;color:var(--dsw-alias-label-primary)}
-.mc-lyric{position:fixed;z-index:5;min-width:320px;max-width:min(880px,86vw);pointer-events:auto;
+.mc-lyric{position:fixed;z-index:5;pointer-events:auto;
   box-sizing:border-box;
   display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;overflow:hidden;
   border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);
@@ -700,34 +740,21 @@ window.__ModuleLoader__.load({
         if (resize === null) return
         const viewportW = window.innerWidth ?? 1200
         const viewportH = window.innerHeight ?? 800
-        const maxW = viewportW - 16
-        const maxH = viewportH - 16
-        const dx = event.clientX - resize.startX
-        const dy = event.clientY - resize.startY
-        const dir = resize.dir
-        let w = resize.w0
-        let h = resize.h0
-        let x = resize.x0
-        let y = resize.y0
-        if (dir.includes('e')) w = Math.min(maxW, Math.max(LYRIC_MIN_W, resize.w0 + dx))
-        if (dir.includes('w')) {
-          w = Math.min(maxW, Math.max(LYRIC_MIN_W, resize.w0 - dx))
-          x = resize.x0 + (resize.w0 - w)
-        }
-        if (dir.includes('s')) h = Math.min(maxH, Math.max(LYRIC_MIN_H, resize.h0 + dy))
-        if (dir.includes('n')) {
-          h = Math.min(maxH, Math.max(LYRIC_MIN_H, resize.h0 - dy))
-          y = resize.y0 + (resize.h0 - h)
-        }
-        // Growing from a west/north edge must not push the box off-screen.
-        x = Math.max(8, Math.min(viewportW - w - 8, x))
-        y = Math.max(8, Math.min(viewportH - h - 8, y))
-        resize.w = w
-        resize.h = h
-        resize.x = x
-        resize.y = y
-        setLyricSize({ w, h })
-        setLyricPos({ x, y })
+        const next = resizeLyricBox(
+          resize, resize.dir,
+          event.clientX - resize.startX, event.clientY - resize.startY,
+          {
+            minW: LYRIC_MIN_W, minH: LYRIC_MIN_H,
+            maxW: viewportW - 16, maxH: viewportH - 16,
+            viewportW, viewportH,
+          },
+        )
+        resize.w = next.w
+        resize.h = next.h
+        resize.x = next.x
+        resize.y = next.y
+        setLyricSize({ w: next.w, h: next.h })
+        setLyricPos({ x: next.x, y: next.y })
       }
 
       const endLyricResize = () => {
@@ -854,7 +881,7 @@ window.__ModuleLoader__.load({
       const lyricX = lyricPos === null ? settings.lyricX : lyricPos.x
       const lyricY = lyricPos === null ? settings.lyricY : lyricPos.y
       // A stored size wins; otherwise the box fits the current window.
-      const autoSize = autoLyricSize(viewportW, viewportH)
+      const autoSize = autoLyricSize(settings.lyricFontSize, viewportW, viewportH)
       const seedW = Number.isFinite(settings.lyricW) ? settings.lyricW : autoSize.w
       const seedH = Number.isFinite(settings.lyricH) ? settings.lyricH : autoSize.h
       const lyricW = Math.min(lyricSize === null ? seedW : lyricSize.w, viewportW - 16)
