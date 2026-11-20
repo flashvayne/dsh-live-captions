@@ -144,11 +144,11 @@ const TOOL_PARAMETERS = {
     },
     lyricW: {
       type: 'number',
-      description: '歌词框宽度像素（260 起）。',
+      description: '歌词框宽度像素（320 起，默认 720）。',
     },
     lyricH: {
       type: 'number',
-      description: '歌词框高度像素（70 起）。',
+      description: '歌词框高度像素（140 起，默认 280）。',
     },
     recordsX: {
       type: 'number',

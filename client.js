@@ -233,7 +233,8 @@ window.__ModuleLoader__.load({
 .mc-line-text{min-width:0;overflow-wrap:anywhere}
 .mc-line-source{font-size:16px;line-height:1.45;color:var(--dsw-alias-label-secondary)}
 .mc-line-target{font-size:19px;line-height:1.45;font-weight:600;color:var(--dsw-alias-label-primary)}
-.mc-lyric{position:fixed;z-index:5;min-width:260px;max-width:min(880px,86vw);pointer-events:auto;
+.mc-lyric{position:fixed;z-index:5;min-width:320px;max-width:min(880px,86vw);pointer-events:auto;
+  box-sizing:border-box;
   display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:12px;overflow:hidden;
   border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);
   box-shadow:0 10px 28px rgba(0,0,0,.18);cursor:grab;user-select:none}
@@ -256,9 +257,13 @@ window.__ModuleLoader__.load({
   color:var(--dsw-alias-label-secondary);opacity:.85}
 .mc-lyric .mc-line-target{font-size:var(--mc-lyric-size,22px);line-height:1.45;font-weight:600;
   color:var(--dsw-alias-label-primary)}
-.mc-lyric-resize{position:absolute;right:1px;bottom:1px;width:14px;height:14px;cursor:nwse-resize;
-  pointer-events:auto;border-bottom-right-radius:12px;background:
-  linear-gradient(135deg,transparent 46%,var(--dsw-alias-border-l2) 46%,var(--dsw-alias-border-l2) 58%,transparent 58%)}
+.mc-lyric-resize{position:absolute;right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize;
+  pointer-events:auto;border-bottom-right-radius:12px;opacity:.5;transition:opacity .12s,background-color .12s;
+  background-image:
+    linear-gradient(135deg,transparent 52%,var(--dsw-alias-label-secondary) 52%,var(--dsw-alias-label-secondary) 58%,transparent 58%),
+    linear-gradient(135deg,transparent 70%,var(--dsw-alias-label-secondary) 70%,var(--dsw-alias-label-secondary) 76%,transparent 76%)}
+.mc-lyric:hover .mc-lyric-resize{opacity:.85}
+.mc-lyric-resize:hover{opacity:1;background-color:var(--dsw-alias-bg-layer-2)}
 .mc-lyric-badge{position:absolute;left:8px;top:-9px;font-size:10px;line-height:1.6;padding:0 6px;border-radius:999px;
   background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);pointer-events:auto;cursor:pointer}
 .mc-record-window{position:fixed;z-index:30;display:flex;flex-direction:column;min-width:320px;min-height:240px;
@@ -667,8 +672,8 @@ window.__ModuleLoader__.load({
         if (resize === null) return
         const maxW = (window.innerWidth ?? 1200) - 16
         const maxH = (window.innerHeight ?? 800) - 16
-        const w = Math.max(260, Math.min(maxW, resize.w0 + (event.clientX - resize.startX)))
-        const h = Math.max(70, Math.min(maxH, resize.h0 + (event.clientY - resize.startY)))
+        const w = Math.max(320, Math.min(maxW, resize.w0 + (event.clientX - resize.startX)))
+        const h = Math.max(140, Math.min(maxH, resize.h0 + (event.clientY - resize.startY)))
         resize.w = w
         resize.h = h
         setLyricSize({ w, h })
@@ -677,7 +682,10 @@ window.__ModuleLoader__.load({
       const endLyricResize = () => {
         const resize = resizeRef.current
         resizeRef.current = null
-        if (resize !== null) save({ lyricW: Math.round(resize.w), lyricH: Math.round(resize.h) })
+        if (resize === null) return
+        // A click on the grip without dragging must not inflate the box.
+        if (resize.w === resize.w0 && resize.h === resize.h0) return
+        save({ lyricW: Math.round(resize.w), lyricH: Math.round(resize.h) })
       }
 
       /** Follow the newest line unless the reader scrolled up inside the box. */
@@ -789,8 +797,8 @@ window.__ModuleLoader__.load({
       const clampY = (value, height) => Math.max(8, Math.min(viewportH - height - 8, value))
       const lyricX = lyricPos === null ? settings.lyricX : lyricPos.x
       const lyricY = lyricPos === null ? settings.lyricY : lyricPos.y
-      const lyricW = Math.min(lyricSize === null ? (settings.lyricW ?? 560) : lyricSize.w, viewportW - 16)
-      const lyricH = Math.min(lyricSize === null ? (settings.lyricH ?? 220) : lyricSize.h, viewportH - 16)
+      const lyricW = Math.min(lyricSize === null ? (settings.lyricW ?? 720) : lyricSize.w, viewportW - 16)
+      const lyricH = Math.min(lyricSize === null ? (settings.lyricH ?? 280) : lyricSize.h, viewportH - 16)
       const lyricLocked = settings.lyricLocked === true
       const lyricVisible = settings.lyricVisible !== false
       const lyricStyle = {
