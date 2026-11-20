@@ -134,6 +134,10 @@ const TOOL_PARAMETERS = {
       type: 'boolean',
       description: '锁定歌词框：锁定后点击穿透，不会挡住界面。',
     },
+    lyricVisible: {
+      type: 'boolean',
+      description: '是否显示桌面字幕浮层；关闭后字幕照常记录，只是不浮在屏幕上。',
+    },
     lyricReset: {
       type: 'boolean',
       description: '重置歌词框位置与大小。',
@@ -289,6 +293,7 @@ export function apply(ctx, config) {
             lyricW: input.lyricW,
             lyricH: input.lyricH,
             lyricLocked: input.lyricLocked,
+            lyricVisible: input.lyricVisible,
             lyricReset: input.lyricReset,
             recordsX: input.recordsX,
             recordsY: input.recordsY,
