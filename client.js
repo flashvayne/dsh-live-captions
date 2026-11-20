@@ -52,7 +52,12 @@ window.__ModuleLoader__.load({
         'unlock': 'Unlock',
         'resetPos': 'Reset position',
         'lockedHint': 'Locked: click-through, unlock from the panel.',
-        'overlay': 'Floating overlay',
+        'overlay': 'Desktop overlay',
+        'overlayIdle': 'Overlay ready — captions appear once capture starts.',
+        'pipUnavailable': 'This window cannot float above other apps; the overlay stays inside the app.',
+        'pipHint': 'Shown in its own always-on-top window; flip the switch to close it.',
+        'collapse': 'Collapse',
+        'expand': 'Expand',
         'overlayOff': 'Hidden — captions keep recording; turn it back on here.',
         'hideOverlay': 'Hide overlay',
         'dragHint': 'Drag to move',
@@ -153,7 +158,12 @@ window.__ModuleLoader__.load({
         'unlock': '解锁',
         'resetPos': '重置位置',
         'lockedHint': '已锁定：可点击穿透，在面板里解锁。',
-        'overlay': '字幕浮层',
+        'overlay': '字幕桌面浮层',
+        'overlayIdle': '浮层已就绪，开始采集后显示字幕。',
+        'pipUnavailable': '当前窗口无法浮在其他应用之上，浮层只能留在应用内。',
+        'pipHint': '浮层已放到独立的置顶窗口；关闭开关即可收回。',
+        'collapse': '折叠',
+        'expand': '展开',
         'overlayOff': '已隐藏，字幕仍在记录；需要时在这里重新打开。',
         'hideOverlay': '隐藏浮层',
         'dragHint': '拖动可移动',
@@ -254,6 +264,24 @@ window.__ModuleLoader__.load({
       const pad = (value) => String(value).padStart(2, '0')
       return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`
     }
+
+    /** Escape text for the hand-built Picture-in-Picture markup. */
+    function escapeText(value) {
+      return String(value ?? '').replace(/[&<>"]/g, (char) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]
+      ))
+    }
+
+    // The desktop overlay lives in a separate, always-on-top window; that window
+    // has its own document, so the theme tokens have to be copied into it.
+    const THEME_TOKENS = [
+      '--dsw-alias-bg-base', '--dsw-alias-bg-layer-1', '--dsw-alias-bg-layer-2', '--dsw-alias-bg-overlay',
+      '--dsw-alias-border-l1', '--dsw-alias-border-l2', '--dsw-alias-brand-primary',
+      '--dsw-alias-label-primary', '--dsw-alias-label-secondary',
+      '--dsw-alias-state-error-primary', '--dsw-alias-state-idle-primary',
+      '--dsw-alias-state-success-primary', '--dsw-alias-state-warn-primary',
+      '--dsw-specific-sidebar-fill',
+    ]
 
     /**
      * First-run overlay size. Derived from the subtitle font size so the box
@@ -569,6 +597,9 @@ window.__ModuleLoader__.load({
       // Detached live-transcript window; shares the records geometry on purpose
       // so only one of the two is on screen at a time.
       const [liveOpen, setLiveOpen] = useState(false)
+      // A detached, always-on-top window is the overlay's preferred home.
+      const [pipActive, setPipActive] = useState(false)
+      const [transcriptCollapsed, setTranscriptCollapsed] = useState(false)
       const [showAdvanced, setShowAdvanced] = useState(false)
       const [busy, setBusy] = useState('')
       const [notice, setNotice] = useState('')
@@ -580,6 +611,7 @@ window.__ModuleLoader__.load({
       const aliveRef = useRef(true)
       const listRef = useRef(null)
       const liveListRef = useRef(null)
+      const pipRef = useRef(null)
 
       // Keep the transcript pinned to the newest line unless the reader scrolled up.
       useEffect(() => {
@@ -1049,6 +1081,97 @@ window.__ModuleLoader__.load({
         }
       })()
 
+      /**
+       * Markup for the detached overlay window. It is built as a string because
+       * that document has no React root: the shell only owns the in-app overlay.
+       */
+      const pipMarkup = () => {
+        const computed = getComputedStyle(document.documentElement)
+        const tokens = THEME_TOKENS
+          .map((name) => `${name}:${computed.getPropertyValue(name).trim()}`)
+          .join(';')
+        const showSource = settings.lyricShowSource !== false
+        const rows = entries.slice(-60).map((entry) => {
+          const showTarget = settings.translate !== false
+            && !(entry.translation !== null && entry.translation === entry.text)
+          return `<div class="mc-lyric-entry"><span class="mc-lyric-time">${escapeText(entry.at ?? '')}</span>`
+            + '<div class="mc-lyric-lines">'
+            + (showSource ? `<div class="mc-line mc-line-source"><span class="mc-line-text">${escapeText(entry.text)}</span></div>` : '')
+            + (showTarget ? `<div class="mc-line mc-line-target"><span class="mc-line-text">${escapeText(entry.translation ?? '…')}</span></div>` : '')
+            + '</div></div>'
+        }).join('')
+        const body = entries.length === 0
+          ? `<div class="mc-line mc-line-source">${escapeText(running ? t('listening') : t('overlayIdle'))}</div>`
+          : rows
+        return `<style>:root{${tokens};--mc-lyric-size:${settings.lyricFontSize ?? 22}px}`
+          + 'html,body{margin:0;background:transparent;font-family:"Segoe UI","Microsoft YaHei UI",system-ui,sans-serif}'
+          + `body{color:var(--dsw-alias-label-primary);overflow:hidden}${styles}`
+          + '.mc-lyric-pip{position:fixed;inset:0;width:auto;height:auto;min-width:0;max-width:none;margin:0;'
+          + 'border:0;border-radius:0;box-shadow:none;background:var(--dsw-alias-bg-overlay);'
+          + 'padding:10px 14px;box-sizing:border-box}'
+          + '</style><div class="mc-lyric mc-lyric-pip"><div class="mc-lyric-body">'
+          + `${body}</div></div>`
+      }
+
+      /** Close the detached window, if one is open. */
+      const closePip = () => {
+        const pip = pipRef.current
+        pipRef.current = null
+        setPipActive(false)
+        if (pip !== null) {
+          try { pip.win.close() } catch { /* already closed */ }
+        }
+      }
+
+      /**
+       * Open the always-on-top overlay window. Document Picture-in-Picture puts a
+       * real OS window above other applications, which a page-fixed element can
+       * never do; it must be requested from a user gesture.
+       */
+      const openPip = async () => {
+        const api = window.documentPictureInPicture
+        if (api === undefined || api === null || typeof api.requestWindow !== 'function') {
+          // No always-on-top window in this shell: say so once and let the
+          // in-app overlay take over.
+          setNotice(t('pipUnavailable'))
+          return false
+        }
+        try {
+          const win = await api.requestWindow({ width: lyricW, height: lyricH })
+          const doc = win.document
+          doc.title = t('overlay')
+          pipRef.current = { win, doc }
+          win.addEventListener('pagehide', () => {
+            pipRef.current = null
+            setPipActive(false)
+          })
+          doc.body.innerHTML = pipMarkup()
+          const resize = () => { try { doc.body.innerHTML = pipMarkup() } catch { /* gone */ } }
+          win.addEventListener('resize', resize)
+          setPipActive(true)
+          return true
+        } catch (error) {
+          setNotice(`PiP: ${error instanceof Error ? error.message : String(error)}`)
+          return false
+        }
+      }
+
+      // Keep the detached window in sync with the live transcript.
+      useEffect(() => {
+        const pip = pipRef.current
+        if (pip === null) return
+        try { pip.doc.body.innerHTML = pipMarkup() } catch { pipRef.current = null }
+      }, [entries, running, settings.lyricShowSource, settings.translate, settings.lyricFontSize, t])
+
+      // Never leave an orphan window behind when the plugin unloads.
+      useEffect(() => () => {
+        const pip = pipRef.current
+        pipRef.current = null
+        if (pip !== null) {
+          try { pip.win.close() } catch { /* already closed */ }
+        }
+      }, [])
+
       // Keep the viewport pinned to the newest line while the reader stays at the bottom.
       useEffect(() => {
         const body = lyricBodyRef.current
@@ -1059,7 +1182,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
 
-        running && lyricVisible ? h('div', {
+        lyricVisible && !pipActive ? h('div', {
           ref: lyricRef,
           className: `mc-lyric${lyricLocked ? ' mc-lyric-locked' : ''}`,
           key: 'lyric',
@@ -1124,7 +1247,8 @@ window.__ModuleLoader__.load({
             ref: lyricBodyRef, onScroll: onLyricScroll,
           },
             entries.length === 0
-              ? h('div', { className: 'mc-line mc-line-source', key: 'listening' }, t('listening'))
+              ? h('div', { className: 'mc-line mc-line-source', key: 'listening' },
+                  running ? t('listening') : t('overlayIdle'))
               : entries.slice(-60).map((entry) => h('div', { className: 'mc-lyric-entry', key: entry.seq }, [
                   h('span', { className: 'mc-lyric-time', key: 'time' }, entry.at ?? ''),
                   h('div', { className: 'mc-lyric-lines', key: 'lines' }, [
@@ -1367,9 +1491,20 @@ window.__ModuleLoader__.load({
                   h('button', {
                     className: 'mc-sw', key: 'sw', type: 'button', role: 'switch',
                     'aria-checked': lyricVisible, 'aria-label': t('overlay'),
-                    onClick: () => save({ lyricVisible: !lyricVisible }),
+                    onClick: () => {
+                      if (lyricVisible) {
+                        closePip()
+                        save({ lyricVisible: false })
+                        return
+                      }
+                      save({ lyricVisible: true })
+                      // Prefer a real always-on-top window; the in-app overlay is
+                      // the fallback when the browser refuses one.
+                      void openPip()
+                    },
                   }),
                 ]),
+                pipActive ? h('div', { className: 'mc-hint', key: 'pip' }, t('pipHint')) : null,
                 lyricVisible ? null : h('div', { className: 'mc-hint', key: 'off' }, t('overlayOff')),
               ]),
 
@@ -1384,6 +1519,13 @@ window.__ModuleLoader__.load({
                     state?.totalEntries ? `${state.totalEntries} ${t('lines')}` : '',
                     state?.session ? `${state.session.segments} ${t('segments')}` : '',
                   ].filter(Boolean).join(' · ')),
+                  h('button', {
+                    className: 'mc-icon-btn', key: 'collapse', type: 'button',
+                    title: transcriptCollapsed ? t('expand') : t('collapse'),
+                    'aria-label': transcriptCollapsed ? t('expand') : t('collapse'),
+                    'aria-expanded': !transcriptCollapsed,
+                    onClick: () => setTranscriptCollapsed((value) => !value),
+                  }, transcriptCollapsed ? '▸' : '▾'),
                   // A detached window is useful when the panel closes mid-meeting:
                   // it keeps mirroring the live list as new lines arrive.
                   h('button', {
@@ -1398,9 +1540,11 @@ window.__ModuleLoader__.load({
                 ]),
                 // While the detached window owns the transcript, the panel keeps
                 // only the header so the same lines are not shown twice.
-                liveOpen
-                  ? h('div', { className: 'mc-empty', key: 'detached' }, t('transcriptDetached'))
-                  : entries.length === 0
+                transcriptCollapsed
+                  ? null
+                  : liveOpen
+                    ? h('div', { className: 'mc-empty', key: 'detached' }, t('transcriptDetached'))
+                    : entries.length === 0
                     ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
                     : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
                       h('div', {
