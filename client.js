@@ -67,8 +67,19 @@ window.__ModuleLoader__.load({
         'translateOff': 'Translation is off: subtitles stay in the spoken language.',
         'engine': 'Translation engine',
         'engine.cloud': 'Cloud model',
-        'engine.builtin': 'Built-in offline model',
+        'engine.builtin': 'Offline model',
         'engine.local': 'Local server',
+        'cloudModel': 'Model',
+        'followDefault': 'Follow the dsh default',
+        'modelsLoading': 'Loading the model list…',
+        'modelsFailed': 'Could not load the model list',
+        'offlineModel': 'Offline model',
+        'downloaded': 'downloaded',
+        'load': 'Load',
+        'download': 'Download',
+        'loading': 'Loading',
+        'depsMissing': 'The built-in runtime (@huggingface/transformers) is not installed.',
+        'cacheDirHint': 'Weights download once into the plugin data folder and stay usable offline.',
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
         'retry': 'Retry',
@@ -150,9 +161,20 @@ window.__ModuleLoader__.load({
         'translate': '翻译字幕',
         'translateOff': '未开启翻译：字幕只显示识别到的原文。',
         'engine': '翻译引擎',
-        'engine.cloud': '云端默认模型',
-        'engine.builtin': '内置离线模型',
+        'engine.cloud': '云端模型',
+        'engine.builtin': '离线模型',
         'engine.local': '本地推理服务',
+        'cloudModel': '模型',
+        'followDefault': '跟随 dsh 默认模型',
+        'modelsLoading': '正在读取模型列表…',
+        'modelsFailed': '读取模型列表失败',
+        'offlineModel': '离线模型',
+        'downloaded': '已下载',
+        'load': '加载',
+        'download': '下载',
+        'loading': '加载中',
+        'depsMissing': '内置推理依赖（@huggingface/transformers）未安装。',
+        'cacheDirHint': '权重只下载一次，存在插件数据目录里，之后离线可用。',
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
         'retry': '重试',
@@ -471,7 +493,8 @@ window.__ModuleLoader__.load({
 .mc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--dsw-alias-label-secondary);flex:1 1 0;min-width:0}
 .mc-ghost-btn{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
   height:29px;padding:0 11px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);
-  background:transparent;color:var(--dsw-alias-label-primary);font-size:11.5px;font-family:inherit;cursor:pointer}
+  background:transparent;color:var(--dsw-alias-label-primary);font-size:11.5px;font-family:inherit;
+  cursor:pointer;flex:0 0 auto;white-space:nowrap}
 .mc-ghost-btn:hover:not([disabled]){background:var(--dsw-alias-bg-layer-2)}
 .mc-ghost-btn[disabled]{opacity:.45;cursor:not-allowed}
 .mc-ghost-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
@@ -658,6 +681,8 @@ window.__ModuleLoader__.load({
       const [pinned, setPinned] = useState(true)
       const [recordsData, setRecordsData] = useState(null)
       const [recordsGeom, setRecordsGeom] = useState(null)
+      // Cloud routes and the offline catalog, fetched once from the Host.
+      const [catalog, setCatalog] = useState(null)
       const lyricRef = useRef(null)
       const lyricBodyRef = useRef(null)
       const pinnedRef = useRef(true)
@@ -667,6 +692,21 @@ window.__ModuleLoader__.load({
       const recordsGrowRef = useRef(null)
 
       const save = useCallback((patch) => command({ action: 'settings', settings: patch }), [command])
+
+      /** Model pickers: one fetch is enough, the list changes with settings only. */
+      const loadCatalog = useCallback(async () => {
+        try {
+          const response = await fetch(`${API}/models`, { headers: { accept: 'application/json' } })
+          const payload = await response.json().catch(() => null)
+          if (payload?.ok) setCatalog({ cloud: payload.cloud ?? { providers: [] }, offline: payload.offline ?? null })
+        } catch (error) {
+          setCatalog({ cloud: { providers: [], error: String(error?.message ?? error) }, offline: null })
+        }
+      }, [])
+
+      useEffect(() => {
+        void loadCatalog()
+      }, [loadCatalog])
 
       const loadRecords = useCallback(async (sessionId) => {
         try {
@@ -875,6 +915,10 @@ window.__ModuleLoader__.load({
       const mtPercent = mt.progress && mt.progress.total > 0
         ? Math.min(100, Math.round((mt.progress.loaded / mt.progress.total) * 100))
         : null
+      const offlineModels = mt.models ?? []
+      const currentOffline = offlineModels.find((entry) => entry.id === settings.builtinModel)
+        ?? offlineModels[0] ?? null
+      const mtLoading = mt.state === 'loading'
 
       const progress = asr.progress ?? {}
       const percent = progress.totalBytes ? Math.min(100, Math.round((progress.completedBytes / progress.totalBytes) * 100)) : null
@@ -1239,28 +1283,129 @@ window.__ModuleLoader__.load({
               showAdvanced
                 ? h('div', { className: 'mc-advanced', key: 'advanced' }, [
 
-                    translateOn
-                      ? h('div', { className: 'mc-irow', key: 'engine-row' }, [
-                          h('span', { className: 'mc-lbl', key: 'label' }, t('engine')),
+                    // Translation settings are a preference, not a mode: they stay
+                    // editable while the translate switch is off, so the engine and
+                    // model can be chosen before the first translation happens.
+                    h('div', { className: 'mc-irow', key: 'engine-row' }, [
+                      h('span', { className: 'mc-lbl', key: 'label' }, t('engine')),
+                      h('select', {
+                        className: 'mc-select', key: 'select',
+                        'aria-label': t('engine'),
+                        value: settings.translateEngine === 'local'
+                          ? 'local'
+                          : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
+                        onChange: (event) => command({
+                          action: 'settings',
+                          settings: { translateEngine: event.target.value },
+                        }),
+                      }, [
+                        h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
+                        h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
+                        h('option', { key: 'local', value: 'local' }, t('engine.local')),
+                      ]),
+                    ]),
+
+                    settings.translateEngine === 'cloud'
+                      ? h('label', { className: 'mc-field', key: 'cloud-model' }, [
+                          h('span', { key: 'label' }, t('cloudModel')),
                           h('select', {
                             className: 'mc-select', key: 'select',
-                            'aria-label': t('engine'),
-                            value: settings.translateEngine === 'local'
-                              ? 'local'
-                              : settings.translateEngine === 'builtin' ? 'builtin' : 'cloud',
-                            onChange: (event) => command({
-                              action: 'settings',
-                              settings: { translateEngine: event.target.value },
-                            }),
+                            'aria-label': t('cloudModel'),
+                            value: settings.cloudProvider !== '' && settings.cloudModel !== ''
+                              ? `${settings.cloudProvider}|${settings.cloudModel}`
+                              : '',
+                            onChange: (event) => {
+                              const value = event.target.value
+                              if (value === '') {
+                                void command({ action: 'settings', settings: { cloudProvider: '', cloudModel: '' } })
+                                return
+                              }
+                              const split = value.indexOf('|')
+                              void command({
+                                action: 'settings',
+                                settings: {
+                                  cloudProvider: value.slice(0, split),
+                                  cloudModel: value.slice(split + 1),
+                                },
+                              })
+                            },
                           }, [
-                            h('option', { key: 'cloud', value: 'cloud' }, t('engine.cloud')),
-                            h('option', { key: 'builtin', value: 'builtin' }, t('engine.builtin')),
-                            h('option', { key: 'local', value: 'local' }, t('engine.local')),
+                            h('option', { key: 'default', value: '' }, t('followDefault')),
+                            ...(catalog?.cloud?.providers ?? []).map((route) =>
+                              h('optgroup', {
+                                key: route.id, label: route.name,
+                              }, (route.models ?? []).map((model) =>
+                                h('option', {
+                                  key: `${route.id}|${model.id}`, value: `${route.id}|${model.id}`,
+                                }, model.name)))),
                           ]),
                         ])
                       : null,
+                    settings.translateEngine === 'cloud' && catalog === null
+                      ? h('div', { className: 'mc-hint', key: 'cloud-loading' }, t('modelsLoading'))
+                      : null,
+                    settings.translateEngine === 'cloud' && catalog?.cloud?.error
+                      ? h('div', { className: 'mc-hint', key: 'cloud-error' },
+                          `${t('modelsFailed')}：${catalog.cloud.error}`)
+                      : null,
 
-                    translateOn && settings.translateEngine === 'local'
+                    settings.translateEngine === 'builtin'
+                      ? h('label', { className: 'mc-field', key: 'offline-model' }, [
+                          h('span', { key: 'label' }, t('offlineModel')),
+                          h('select', {
+                            className: 'mc-select', key: 'select',
+                            'aria-label': t('offlineModel'),
+                            value: settings.builtinModel ?? '',
+                            onChange: (event) => void command({
+                              action: 'settings', settings: { builtinModel: event.target.value },
+                            }),
+                          }, offlineModels.map((model) => h('option', {
+                            key: model.id, value: model.id,
+                          }, `${model.label} · ${model.sizeMb} MB${model.downloaded ? ` · ${t('downloaded')}` : ''}`))),
+                        ])
+                      : null,
+                    settings.translateEngine === 'builtin'
+                      ? h('div', { className: 'mc-grp', key: 'offline-detail' }, [
+                          h('div', { className: 'mc-hint', key: 'meta' },
+                            [currentOffline?.detail, currentOffline?.license].filter(Boolean).join(' · ')),
+                          h('div', { className: 'mc-irow', key: 'actions' }, [
+                            h('button', {
+                              className: 'mc-ghost-btn', key: 'download', type: 'button',
+                              disabled: busy !== '' || mtLoading || mt.installing,
+                              onClick: () => command({ action: 'download_model', model: settings.builtinModel }),
+                            }, mtLoading ? t('loading') : currentOffline?.downloaded ? t('load') : t('download')),
+                            mt.depsInstalled === false && !mt.installing
+                              ? h('span', { className: 'mc-hint', key: 'deps' }, t('depsMissing'))
+                              : null,
+                            mt.depsInstalled === false && !mt.installing
+                              ? h('button', {
+                                  className: 'mc-ghost-btn', key: 'install', type: 'button',
+                                  onClick: () => command({ action: 'install_mt_deps' }),
+                                }, t('downloadDeps'))
+                              : null,
+                          ]),
+                          mt.installing
+                            ? h('div', { className: 'mc-hint', key: 'installing' },
+                                mt.installProgress?.message ?? t('mtPreparing'))
+                            : null,
+                          mt.state === 'failed'
+                            ? h('div', { className: 'mc-error', key: 'failed' }, `${t('mtFailed')}：${mt.error ?? ''}`)
+                            : null,
+                          mtLoading && mtPercent !== null
+                            ? h('div', {
+                                className: 'mc-progress', key: 'progress',
+                                role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
+                              }, h('span', { style: { width: `${mtPercent}%` } }))
+                            : null,
+                          mtLoading && mtPercent === null
+                            ? h('div', { className: 'mc-hint', key: 'preparing' },
+                                `${t('mtPreparing')} · ${formatBytes(mt.progress?.loaded ?? 0)}`)
+                            : null,
+                          h('div', { className: 'mc-hint', key: 'cache' }, t('cacheDirHint')),
+                        ])
+                      : null,
+
+                    settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-row', key: 'local-fields' }, [
                           h('label', { className: 'mc-field', key: 'local-url' }, [
                             h('span', { key: 'label' }, t('localUrl')),
@@ -1282,10 +1427,10 @@ window.__ModuleLoader__.load({
                           ]),
                         ])
                       : null,
-                    translateOn && settings.translateEngine === 'local'
+                    settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-hint', key: 'local-hint' }, t('localHint'))
                       : null,
-                    translateOn && settings.translateEngine === 'local'
+                    settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-hint', key: 'local-note' }, t('engineLocalNote'))
                       : null,
 
@@ -1312,35 +1457,6 @@ window.__ModuleLoader__.load({
                       : null,
                     asrBusy && percent === null
                       ? h('div', { className: 'mc-hint', key: 'hint' }, `${t('preparing')} · ${formatBytes(progress.completedBytes)}`)
-                      : null,
-
-                    translateOn && settings.translateEngine === 'builtin' && mt.state !== 'ready'
-                      ? h('div', { className: 'mc-row', key: 'mt-status' }, [
-                          h('div', { className: 'mc-hint', key: 'hint' },
-                            mt.installing
-                              ? (mt.installProgress?.message ?? t('mtPreparing'))
-                              : mt.state === 'failed'
-                                ? `${t('mtFailed')}：${mt.error ?? ''}`
-                                : `${t('mtPreparing')}${mtPercent === null ? '' : ` ${mtPercent}%`}`),
-                          mt.missingDeps && !mt.installing
-                            ? h('button', {
-                                className: 'mc-ghost-btn', key: 'mt-install', type: 'button',
-                                onClick: () => command({ action: 'install_mt_deps' }),
-                              }, t('downloadDeps'))
-                            : null,
-                          mt.state === 'failed' && !mt.missingDeps && !mt.installing
-                            ? h('button', {
-                                className: 'mc-ghost-btn', key: 'mt-retry', type: 'button',
-                                onClick: () => save({ translateEngine: 'builtin' }),
-                              }, t('retry'))
-                            : null,
-                        ])
-                      : null,
-                    translateOn && settings.translateEngine === 'builtin' && mt.state !== 'ready' && mtPercent !== null
-                      ? h('div', {
-                          className: 'mc-progress', key: 'mt-progress',
-                          role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': mtPercent,
-                        }, h('span', { style: { width: `${mtPercent}%` } }))
                       : null,
 
                     state?.engine?.label

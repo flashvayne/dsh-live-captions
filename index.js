@@ -77,8 +77,8 @@ const TOOL_PARAMETERS = {
   properties: {
     action: {
       type: 'string',
-      enum: ['start', 'stop', 'status', 'prepare', 'install_mt_deps', 'minutes', 'settings', 'records'],
-      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（首次使用会下载约 230 MB，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）。',
+      enum: ['start', 'stop', 'status', 'prepare', 'install_mt_deps', 'minutes', 'settings', 'records', 'models'],
+      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（首次使用会下载约 230 MB，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）；models 列出可用的云端模型与离线模型。',
     },
     session: {
       type: 'string',
@@ -104,7 +104,19 @@ const TOOL_PARAMETERS = {
     translateEngine: {
       type: 'string',
       enum: ['cloud', 'builtin', 'local'],
-      description: '翻译引擎：cloud=云端默认模型；builtin=插件内置的离线多语种模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端模型。',
+      description: '翻译引擎：cloud=云端模型；builtin=离线多语种模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端模型。',
+    },
+    cloudProvider: {
+      type: 'string',
+      description: '云端翻译的模型提供方 id（见 action=models）；留空表示跟随 dsh 默认模型。',
+    },
+    cloudModel: {
+      type: 'string',
+      description: '云端翻译的模型 id（见 action=models）；留空表示跟随 dsh 默认模型。',
+    },
+    builtinModel: {
+      type: 'string',
+      description: '离线翻译模型 id：Xenova/m2m100_418M（多语种，600 MB）、Xenova/nllb-200-distilled-600M（中文更好，640 MB，CC-BY-NC）、Xenova/opus-mt-en-zh（英译中，90 MB）。',
     },
     localBaseUrl: {
       type: 'string',
@@ -284,6 +296,9 @@ export function apply(ctx, config) {
             targetLanguage: input.targetLanguage,
             translate: input.translate,
             translateEngine: input.translateEngine,
+            cloudProvider: input.cloudProvider,
+            cloudModel: input.cloudModel,
+            builtinModel: input.builtinModel,
             localBaseUrl: input.localBaseUrl,
             localModel: input.localModel,
             lyricFontSize: input.lyricFontSize,
@@ -314,6 +329,24 @@ export function apply(ctx, config) {
         if (action === 'install_mt_deps') {
           const result = await controller.installMtDeps()
           return { ok: result.ok !== false, summary: result.ok === false ? `依赖下载失败：${result.error}` : (result.note ?? '内置翻译依赖已就绪。') }
+        }
+        if (action === 'models') {
+          const cloud = await controller.listCloudModels()
+          const offline = controller.offlineModels()
+          const lines = ['云端可选：']
+          if (cloud.error) lines.push(`- 读取失败：${cloud.error}`)
+          else if ((cloud.providers ?? []).length === 0) lines.push('- 没有已注册的模型提供方')
+          else {
+            for (const provider of cloud.providers) {
+              lines.push(`- ${provider.name}：${(provider.models ?? []).map((model) => model.id).join('、') || '（无模型）'}`)
+            }
+          }
+          lines.push('', '离线可选：')
+          for (const model of offline.models) {
+            lines.push(`- ${model.id}（${model.label}，约 ${model.sizeMb} MB，${model.license}）${model.downloaded ? ' 已下载' : ''}${model.id === offline.active ? ' ← 当前' : ''}`)
+          }
+          lines.push('', `当前翻译引擎：${cloud.active?.label ?? '-'}`)
+          return { ok: true, summary: lines.join('\n') }
         }
         if (action === 'start') {
           if (input.source || input.targetLanguage || input.sourceLanguage || input.translate !== undefined
