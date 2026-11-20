@@ -40,6 +40,7 @@ window.__ModuleLoader__.load({
         'tagTarget': 'Translation',
         'records': 'Records',
         'liveWindow': 'Live transcript',
+        'transcriptDetached': 'Shown in its own window — press ⧉ to bring it back.',
         'moreSettings': 'More options',
         'recordsTitle': 'Caption records',
         'recordsEmpty': 'No records yet.',
@@ -140,6 +141,7 @@ window.__ModuleLoader__.load({
         'tagTarget': '译文',
         'records': '记录',
         'liveWindow': '实时转写',
+        'transcriptDetached': '已在独立窗口显示；点 ⧉ 收回面板。',
         'moreSettings': '更多设置',
         'recordsTitle': '字幕记录',
         'recordsEmpty': '还没有记录。',
@@ -732,6 +734,7 @@ window.__ModuleLoader__.load({
        * the user can steer — and the panel stays a reader.
        */
       const openMinutesSession = useCallback(async () => {
+        let prompt = ''
         try {
           const response = await fetch(`${API}/minutes-prompt`, { headers: { accept: 'application/json' } })
           const payload = await response.json().catch(() => null)
@@ -739,20 +742,26 @@ window.__ModuleLoader__.load({
             setNotice(payload?.error ?? '生成纪要提示词失败')
             return
           }
-          const workspace = ctx?.uiWorkspace
+          prompt = payload.prompt
+          // `ctx.get` is the optional-access form: touching ctx.uiWorkspace
+          // directly throws unless the service is in our inject list, and it is
+          // only reachable in the shell, where our overlay happens to live.
+          const workspace = typeof ctx?.get === 'function' ? ctx.get('uiWorkspace') : undefined
           if (workspace === undefined || typeof workspace.startSession !== 'function') {
-            try { await navigator.clipboard.writeText(payload.prompt) } catch { /* no clipboard */ }
+            try { await navigator.clipboard.writeText(prompt) } catch { /* no clipboard */ }
             setNotice(t('minutesNoSession'))
             return
           }
           workspace.startSession(undefined, {
-            prompt: payload.prompt,
+            prompt,
             clearPreviousDraft: true,
             whenDraftExists: 'replace',
           })
           setOpen(false)
         } catch (error) {
-          setNotice(String(error?.message ?? error))
+          // Never lose the work: fall back to the clipboard and say why.
+          try { if (prompt !== '') await navigator.clipboard.writeText(prompt) } catch { /* no clipboard */ }
+          setNotice(`${t('minutesNoSession')} ${String(error?.message ?? error)}`)
         }
       }, [ctx, t])
 
@@ -1387,9 +1396,13 @@ window.__ModuleLoader__.load({
                     },
                   }, '⧉'),
                 ]),
-                entries.length === 0
-                  ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
-                  : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
+                // While the detached window owns the transcript, the panel keeps
+                // only the header so the same lines are not shown twice.
+                liveOpen
+                  ? h('div', { className: 'mc-empty', key: 'detached' }, t('transcriptDetached'))
+                  : entries.length === 0
+                    ? h('div', { className: 'mc-empty', key: 'empty' }, running ? t('listening') : t('emptyTranscript'))
+                    : h('div', { className: 'mc-list', key: 'list', ref: listRef }, entries.slice(-40).map((entry) =>
                       h('div', {
                         className: `mc-tr-row${entry.live ? ' mc-tr-live' : ''}`, key: entry.seq,
                       }, [
