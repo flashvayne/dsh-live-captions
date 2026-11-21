@@ -17,7 +17,6 @@
       name: 'dsh-live-captions'
       config:
         dataRoot: !!js dshHomePath('live-captions')
-        segmentSeconds: 4
         minSegmentSeconds: 1.2
         source: both
         sourceLanguage: auto

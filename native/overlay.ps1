@@ -116,7 +116,7 @@ $grid.RowDefinitions.Add($rowBody)
 
 $tools = New-Object System.Windows.Controls.StackPanel
 $tools.Orientation = 'Horizontal'
-[System.Windows.Controls.Grid]::SetRow($tools, 0)
+$tools.VerticalAlignment = 'Center'
 
 # The thin rule under the tool row, and the dashed rules between entries, are
 # what make this window read like the in-app overlay it replaces.
@@ -186,14 +186,26 @@ $closeButton = New-ToolButton -Text ([string]$labels.closeGlyph) -Tip ([string]$
   Invoke-LcApi -Method POST -Path '/command' -Body @{ action = 'overlay_close' } | Out-Null
   $script:running = $false
 }
-$closeButton.HorizontalAlignment = 'Right'
 $closeButton.Margin = New-Object System.Windows.Thickness(0)
-$closeHost = New-Object System.Windows.Controls.StackPanel
-$closeHost.Orientation = 'Horizontal'
-$closeHost.HorizontalAlignment = 'Right'
-$closeHost.Children.Add($closeButton) | Out-Null
-$tools.Children.Add($closeHost) | Out-Null
-$tools.Children[$tools.Children.Count - 1].HorizontalAlignment = 'Stretch'
+$closeButton.Padding = New-Object System.Windows.Thickness(8, 1, 0, 1)
+$closeButton.FontSize = 13
+$closeButton.VerticalAlignment = 'Center'
+
+# Tool row: the tools stay on the left, the hide button keeps the top-right
+# corner of the box. The whole strip drags the window; only the buttons do not.
+$toolbar = New-Object System.Windows.Controls.Grid
+[System.Windows.Controls.Grid]::SetRow($toolbar, 0)
+$colTools = New-Object System.Windows.Controls.ColumnDefinition
+$colTools.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+$colClose = New-Object System.Windows.Controls.ColumnDefinition
+$colClose.Width = [System.Windows.GridLength]::Auto
+$toolbar.ColumnDefinitions.Add($colTools)
+$toolbar.ColumnDefinitions.Add($colClose)
+[System.Windows.Controls.Grid]::SetColumn($tools, 0)
+[System.Windows.Controls.Grid]::SetColumn($closeButton, 1)
+$closeButton.HorizontalAlignment = 'Right'
+$toolbar.Children.Add($tools) | Out-Null
+$toolbar.Children.Add($closeButton) | Out-Null
 
 $scroll = New-Object System.Windows.Controls.ScrollViewer
 $scroll.VerticalScrollBarVisibility = 'Hidden'
@@ -204,7 +216,7 @@ $items = New-Object System.Windows.Controls.StackPanel
 $items.Margin = New-Object System.Windows.Thickness(0, 2, 4, 0)
 $scroll.Content = $items
 
-$grid.Children.Add($tools) | Out-Null
+$grid.Children.Add($toolbar) | Out-Null
 $grid.Children.Add($rule) | Out-Null
 $grid.Children.Add($scroll) | Out-Null
 $root.Child = $grid
@@ -259,8 +271,24 @@ $script:gesture = $null
 # Generous edge band: the visible border is 1px and the rounded corner eats into
 # the very corner, so a wider band is what makes "grab the edge" reliable.
 $EDGE = 10
-# Height of the toolbar strip; presses there belong to the buttons, not a drag.
-$TOOLBAR = 40
+
+<#
+  True when the press landed on one of the tool buttons: those own the click, and
+  every other press (empty toolbar, body) starts a drag.
+#>
+function Test-OnButton {
+  param($Source)
+  $node = $Source
+  try {
+    while ($null -ne $node) {
+      if ($node -is [System.Windows.Controls.Button]) { return $true }
+      if ($node -is [System.Windows.Media.Visual]) { $node = [System.Windows.Media.VisualTreeHelper]::GetParent($node) }
+      elseif ($node -is [System.Windows.Media.Media3D.Visual3D]) { $node = [System.Windows.Media.Media3D.VisualTreeHelper]::GetParent($node) }
+      else { return $false }
+    }
+  } catch { }
+  return $false
+}
 
 function Get-Zone {
   param([System.Windows.Point]$Point)
@@ -369,9 +397,8 @@ $root.Add_PreviewMouseMove({
     'ne' { $win.Cursor = [System.Windows.Input.Cursors]::SizeNESW }
     'sw' { $win.Cursor = [System.Windows.Input.Cursors]::SizeNESW }
     default {
-      # Body is draggable, so it advertises a hand like the in-app box did.
-      if ($point.Y -ge $TOOLBAR) { $win.Cursor = [System.Windows.Input.Cursors]::Hand }
-      else { $win.Cursor = [System.Windows.Input.Cursors]::Arrow }
+      # Toolbar and body both drag the window, so both advertise a hand.
+      $win.Cursor = [System.Windows.Input.Cursors]::Hand
     }
   }
 })
@@ -394,8 +421,8 @@ $root.Add_PreviewMouseLeftButtonDown({
     $event.Handled = $true
     return
   }
-  # A press on the toolbar belongs to its buttons.
-  if ($point.Y -lt $TOOLBAR) { return }
+  # A press on a tool button belongs to that button; the rest of the strip drags.
+  if (Test-OnButton $event.OriginalSource) { return }
   $script:gesture = @{
     kind = 'drag'
     startX = $cursor.X; startY = $cursor.Y

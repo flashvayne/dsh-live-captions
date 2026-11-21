@@ -7,7 +7,7 @@
   to 16 kHz mono 16-bit PCM and writes consecutive WAV segments to -OutDir.
 
   Protocol (stdout, one JSON object per line):
-    {"type":"ready","outDir":"...","segmentSeconds":4}
+    {"type":"ready","outDir":"...","segmentSeconds":8}
     {"type":"segment","index":1,"file":"seg-000001.wav","seconds":4.0,"rms":0.0321}
     {"type":"error","error":"..."}
 
@@ -16,7 +16,7 @@
 #>
 param(
   [Parameter(Mandatory = $true)][string]$OutDir,
-  [int]$SegmentSeconds = 6,
+  [int]$SegmentSeconds = 8,
   [double]$MinSegmentSeconds = 1.2,
   [ValidateSet('both', 'speaker', 'mic')][string]$Source = 'both',
   [int]$SampleRate = 16000
@@ -305,17 +305,28 @@ namespace DshAudio
         readonly int hardFrames;
         readonly int quietFrames;
         readonly int dipLookback;
+        readonly int dipWindow;
         readonly int frameFrames;
         // Levels are tricky on this machine: the loopback can run quiet (a
         // full-volume video measures ~0.01 RMS) while room/music noise sits
         // around 0.003-0.005. An absolute silence threshold therefore cuts inside
         // words (unvoiced consonants are quiet). A pause is instead recognised
-        // as 600 ms in which the LOUDEST 20 ms frame stays well below the level
-        // of the current utterance, which no consonant gap can fake.
+        // as 600 ms in which the LOUDEST 20 ms frame stays far below the level of
+        // the current utterance: 7% of the take peak (-23 dB) is quiet enough that
+        // a breath or a soft word cannot fake it, while real silence still passes.
         const double FloorRms = 0.0012;      // digital-ish silence, safe to drop
-        const double PauseRatio = 0.14;      // pause = this much below the speech peak
+        // Idle room noise peaks around 0.003 on this machine; a take must sit
+        // clearly above that before a pause is worth closing it.
+        const double SpeechFloorRms = 0.004;
+        const double PauseRatio = 0.07;      // pause = this much below the speech peak
         const double MaxPauseRms = 0.02;     // never demand more than this
         const double KeepMarginSeconds = 0.15;
+        // A take that hits the cap is moved into the quietest 400 ms stretch of
+        // the previous 3 s, which is a gap between phrases rather than a syllable
+        // boundary. When that stretch is well below the take's own level it is a
+        // real gap and the caption may end there; a shallow one (music, noise, a
+        // clause) only ends the take and the next one continues the same caption.
+        const double CutDepthRatio = 0.2;
         readonly List<short> buffer = new List<short>(16000 * 16);
         int segmentIndex;
         bool disposed;
@@ -328,7 +339,8 @@ namespace DshAudio
             hardFrames = sampleRate * maxSeconds;
             if (hardFrames <= minFrames) hardFrames = minFrames + sampleRate;
             quietFrames = sampleRate * 3 / 5;          // 600 ms of real pause
-            dipLookback = sampleRate * 7 / 10;         // search the last 700 ms
+            dipLookback = sampleRate * 3;              // search the last 3 s
+            dipWindow = sampleRate * 2 / 5;            // 400 ms: a gap, not a consonant
             frameFrames = sampleRate / 50;             // 20 ms energy frames
         }
 
@@ -338,17 +350,20 @@ namespace DshAudio
             if (buffer.Count < minFrames) return;
             double peak = PeakFrameRms(buffer.Count);
             if (peak < FloorRms) { buffer.Clear(); return; }
-            if (buffer.Count >= hardFrames)
-            {
-                // The cap still lands inside a word; move it to the quietest
-                // 20 ms frame of the last 700 ms so it lands in a syllable gap.
-                Emit(FindQuietestCut(), "cut");
-            }
-            else if (buffer.Count >= quietFrames && TailMaxRms(quietFrames) < PauseLevel(peak))
+            if (buffer.Count >= quietFrames && peak >= SpeechFloorRms && TailMaxRms(quietFrames) < PauseLevel(peak))
             {
                 // 600 ms with no speech-level frame at all: a real pause. A quiet
                 // consonant only lasts tens of milliseconds, so it cannot trigger.
                 Emit(buffer.Count, "pause");
+                return;
+            }
+            if (buffer.Count >= hardFrames)
+            {
+                int cut = FindQuietestCut();
+                int width = Math.Min(dipWindow, buffer.Count - cut);
+                double level = width > 0 ? FrameRms(cut, width, buffer.Count) : 1;
+                double takePeak = PeakFrameRms(cut);
+                Emit(cut, takePeak > 0 && level / takePeak <= CutDepthRatio ? "pause" : "cut");
             }
         }
 
@@ -415,23 +430,40 @@ namespace DshAudio
             return FrameRms(buffer.Count - frames, frames, buffer.Count);
         }
 
+        /**
+         * Where a take that hit the cap should end: the latest 400 ms stretch of
+         * the previous 3 s that is as quiet as the quietest one. The 400 ms window
+         * is long enough to still hold a syllable, so a syllable boundary inside a
+         * word scores clearly higher than a gap between phrases, and taking the
+         * latest near-quiet stretch keeps the take as long as possible.
+         */
         int FindQuietestCut()
         {
-            int lowest = Math.Max(minFrames, buffer.Count - dipLookback);
-            int highest = buffer.Count - frameFrames;
-            if (highest <= lowest) return buffer.Count;
-            double best = double.MaxValue;
-            int bestStart = buffer.Count;
-            for (int start = lowest; start <= highest; start += frameFrames)
+            int window = dipWindow;
+            int end = buffer.Count - window;
+            int start = Math.Max(minFrames, buffer.Count - dipLookback);
+            if (end <= start) return buffer.Count;
+            int total = end + window;
+            var sums = new double[total + 1];
+            for (int i = 0; i < total; i++)
             {
-                double rms = FrameRms(start, frameFrames, buffer.Count);
-                if (rms < best)
-                {
-                    best = rms;
-                    bestStart = start;
-                }
+                double v = buffer[i] / 32768.0;
+                sums[i + 1] = sums[i] + v * v;
             }
-            return bestStart;
+            double best = double.MaxValue;
+            int bestAt = start;
+            for (int at = start; at <= end; at += frameFrames)
+            {
+                double level = (sums[at + window] - sums[at]) / window;
+                if (level < best) { best = level; bestAt = at; }
+            }
+            double limit = best * 1.25;
+            for (int at = end; at >= start; at -= frameFrames)
+            {
+                double level = (sums[at + window] - sums[at]) / window;
+                if (level <= limit) return at;
+            }
+            return bestAt;
         }
 
         /// <summary>
@@ -497,7 +529,7 @@ namespace DshAudio
             double rms = Math.Sqrt(sumSquares / kept);
             Console.WriteLine("{\"type\":\"segment\",\"index\":" + segmentIndex +
                 ",\"file\":\"" + Path.GetFileName(path) + "\",\"seconds\":" + seconds.ToString("F2") +
-                ",\"rms\":" + rms.ToString("F5") + ",\"reason\":\"" + (length >= hardFrames ? "cut" : "pause") + "\"}");
+                ",\"rms\":" + rms.ToString("F5") + ",\"reason\":\"" + (reason == "cut" ? "cut" : "pause") + "\"}");
             Console.Out.Flush();
         }
 

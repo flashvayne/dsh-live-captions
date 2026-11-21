@@ -30,7 +30,6 @@ window.__ModuleLoader__.load({
         'source.both': 'System audio + mic',
         'source.speaker': 'System audio',
         'source.mic': 'Microphone',
-        'segCap': 'Longest take',
         'spoken': 'Source language',
         'target': 'Target language',
         'tagSource': 'Source',
@@ -137,7 +136,6 @@ window.__ModuleLoader__.load({
         'source.both': '系统声音 + 麦克风',
         'source.speaker': '系统声音',
         'source.mic': '麦克风',
-        'segCap': '最长段长',
         'spoken': '源语言',
         'target': '目标语言',
         'tagSource': '原文',
@@ -1523,17 +1521,6 @@ window.__ModuleLoader__.load({
                     'aria-label': t('spoken'),
                     onChange: (event) => command({ action: 'settings', settings: { sourceLanguage: event.target.value } }),
                   }, SOURCE_LANGUAGES.map((value) => h('option', { key: value, value }, t(`lang.${value}`)))),
-                ]),
-                // How long one take may grow before it is force-cut. Longer keeps
-                // sentences together at the cost of a little latency.
-                h('div', { className: 'mc-irow', key: 'segcap' }, [
-                  h('span', { className: 'mc-lbl', key: 'lbl' }, t('segCap')),
-                  h('select', {
-                    className: 'mc-select', key: 'select',
-                    value: String(settings.segmentSeconds ?? 6),
-                    'aria-label': t('segCap'),
-                    onChange: (event) => command({ action: 'settings', settings: { segmentSeconds: Number(event.target.value) } }),
-                  }, [3, 4, 5, 6, 8, 10].map((seconds) => h('option', { key: seconds, value: String(seconds) }, `${seconds}s`))),
                 ]),
               ]),
 
