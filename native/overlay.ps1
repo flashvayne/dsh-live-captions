@@ -477,7 +477,7 @@ function Update-Entries {
   $running = ($state.status -eq 'running' -or $state.status -eq 'starting')
   $rows = @($state.entries)
   $signature = ''
-  foreach ($row in $rows) { $signature += ([string]$row.seq + '|' + [string]$row.translation + ';') }
+  foreach ($row in $rows) { $signature += ([string]$row.seq + '|' + [string]$row.text + '|' + [string]$row.translation + ';') }
   $signature = [string]$baseSize + '|' + [string]$script:settings.lyricShowSource + '|' + [string]$translate + '|' + [string]$running + '|' + $signature
   if ($signature -eq $script:signature) { return }
   $script:signature = $signature

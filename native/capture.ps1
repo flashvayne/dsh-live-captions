@@ -303,14 +303,16 @@ namespace DshAudio
         readonly int sampleRate;
         readonly int minFrames;
         readonly int hardFrames;
-        readonly List<short> recent = new List<short>(8192);
-        const int QuietWindowFrames = 4000;   // 250 ms of near-silence ends an utterance
-        const double QuietRms = 0.004;
-        FileStream stream;
-        BinaryWriter writer;
-        int frames;
+        readonly int quietFrames;
+        readonly int dipLookback;
+        readonly int frameFrames;
+        // 400 ms of near-silence ends an utterance. Music or noise often keeps the
+        // level above this, which is why the hard cap below has to cut sensibly.
+        const double QuietRms = 0.005;
+        // Whole-segment level below which the buffer is thrown away (room noise).
+        const double DiscardRms = 0.008;
+        readonly List<short> buffer = new List<short>(16000 * 12);
         int segmentIndex;
-        double sumSquares;
         bool disposed;
 
         public SegmentWriter(string outDir, int sampleRate, double minSeconds, int maxSeconds)
@@ -320,97 +322,122 @@ namespace DshAudio
             minFrames = (int)(sampleRate * minSeconds);
             hardFrames = sampleRate * maxSeconds;
             if (hardFrames <= minFrames) hardFrames = minFrames + sampleRate;
+            quietFrames = sampleRate * 2 / 5;          // 400 ms
+            dipLookback = sampleRate * 7 / 10;         // search the last 700 ms
+            frameFrames = sampleRate / 50;             // 20 ms energy frames
         }
 
         public void Write(short[] samples, int count)
         {
-            if (stream == null) OpenSegment();
-            var bytes = new byte[count * 2];
-            Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
-            stream.Write(bytes, 0, bytes.Length);
-            frames += count;
-            for (int i = 0; i < count; i++) { double v = samples[i] / 32768.0; sumSquares += v * v; }
-            for (int i = 0; i < count; i++) recent.Add(samples[i]);
-            if (recent.Count > QuietWindowFrames * 2) recent.RemoveRange(0, recent.Count - QuietWindowFrames * 2);
-
-            // Commit as soon as the speaker pauses, so the subtitle appears at the
-            // end of an utterance instead of waiting for a fixed window.
-            bool quietTail = recent.Count >= QuietWindowFrames && TailRms() < QuietRms;
-            if (frames >= minFrames && quietTail) Emit();
-            else if (frames >= hardFrames) Emit();
-            else if ((frames % sampleRate) < count) PatchHeader(false);
+            for (int i = 0; i < count; i++) buffer.Add(samples[i]);
+            bool quietTail = buffer.Count >= minFrames && TailRms(quietFrames) < QuietRms;
+            if (buffer.Count >= hardFrames)
+            {
+                // Ambient hum or a muted room must not produce 4 s files every
+                // four seconds: below this level there is nothing to recognise.
+                if (BufferRms() < DiscardRms) { buffer.Clear(); return; }
+                // A fixed 4 s cut lands mid-word; move it to the quietest 20 ms
+                // frame in the last 700 ms so it lands in a syllable gap instead.
+                Emit(FindQuietestCut(), "cut");
+            }
+            else if (quietTail)
+            {
+                if (BufferRms() < DiscardRms) { buffer.Clear(); return; }
+                Emit(buffer.Count, "pause");
+            }
         }
 
-        double TailRms()
+        double BufferRms()
         {
+            if (buffer.Count == 0) return 0;
             double sum = 0;
-            for (int i = 0; i < recent.Count; i++) { double v = recent[i] / 32768.0; sum += v * v; }
-            return Math.Sqrt(sum / recent.Count);
+            for (int i = 0; i < buffer.Count; i++) { double v = buffer[i] / 32768.0; sum += v * v; }
+            return Math.Sqrt(sum / buffer.Count);
         }
 
-        void OpenSegment()
+        double TailRms(int frames)
         {
+            if (buffer.Count < frames || frames <= 0) return 1;
+            int start = buffer.Count - frames;
+            double sum = 0;
+            for (int i = start; i < buffer.Count; i++) { double v = buffer[i] / 32768.0; sum += v * v; }
+            return Math.Sqrt(sum / frames);
+        }
+
+        int FindQuietestCut()
+        {
+            int lowest = Math.Max(minFrames, buffer.Count - dipLookback);
+            int highest = buffer.Count - frameFrames;
+            if (highest <= lowest) return buffer.Count;
+            double best = double.MaxValue;
+            int bestStart = buffer.Count;
+            for (int start = lowest; start <= highest; start += frameFrames)
+            {
+                double sum = 0;
+                for (int i = 0; i < frameFrames; i++)
+                {
+                    double v = buffer[start + i] / 32768.0;
+                    sum += v * v;
+                }
+                double rms = Math.Sqrt(sum / frameFrames);
+                if (rms < best)
+                {
+                    best = rms;
+                    bestStart = start;
+                }
+            }
+            return bestStart;
+        }
+
+        void Emit(int length, string reason)
+        {
+            if (length <= 0) return;
+            if (length > buffer.Count) length = buffer.Count;
             segmentIndex++;
             string path = Path.Combine(outDir, "seg-" + segmentIndex.ToString("D6") + ".wav");
-            stream = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
-            writer = new BinaryWriter(stream);
-            WriteHeader(0);
-            frames = 0;
-            sumSquares = 0;
-        }
-
-        void WriteHeader(int dataBytes)
-        {
-            stream.Seek(0, SeekOrigin.Begin);
-            writer.Write(new byte[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
-            writer.Write((uint)(36 + dataBytes));
-            writer.Write(new byte[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E' });
-            writer.Write(new byte[] { (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
-            writer.Write((uint)16);
-            writer.Write((ushort)1);
-            writer.Write((ushort)1);
-            writer.Write((uint)sampleRate);
-            writer.Write((uint)(sampleRate * 2));
-            writer.Write((ushort)2);
-            writer.Write((ushort)16);
-            writer.Write(new byte[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
-            writer.Write((uint)dataBytes);
-        }
-
-        void PatchHeader(bool finalize)
-        {
-            if (stream == null) return;
-            long end = stream.Position;
-            WriteHeader(frames * 2);
-            stream.Seek(end, SeekOrigin.Begin);
-            stream.Flush();
-        }
-
-        public void Emit()
-        {
-            if (stream == null) return;
-            PatchHeader(true);
-            double seconds = (double)frames / sampleRate;
-            double rms = frames > 0 ? Math.Sqrt(sumSquares / frames) : 0;
-            string path = Path.Combine(outDir, "seg-" + segmentIndex.ToString("D6") + ".wav");
+            double sumSquares = 0;
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
+            using (var writer = new BinaryWriter(stream))
+            {
+                writer.Write(new byte[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
+                writer.Write((uint)(36 + length * 2));
+                writer.Write(new byte[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E' });
+                writer.Write(new byte[] { (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
+                writer.Write((uint)16);
+                writer.Write((ushort)1);
+                writer.Write((ushort)1);
+                writer.Write((uint)sampleRate);
+                writer.Write((uint)(sampleRate * 2));
+                writer.Write((ushort)2);
+                writer.Write((ushort)16);
+                writer.Write(new byte[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
+                writer.Write((uint)(length * 2));
+                var bytes = new byte[length * 2];
+                for (int i = 0; i < length; i++)
+                {
+                    short value = buffer[i];
+                    sumSquares += (value / 32768.0) * (value / 32768.0);
+                    bytes[i * 2] = (byte)(value & 0xFF);
+                    bytes[i * 2 + 1] = (byte)((value >> 8) & 0xFF);
+                }
+                writer.Write(bytes);
+            }
+            buffer.RemoveRange(0, length);
+            double seconds = (double)length / sampleRate;
+            double rms = Math.Sqrt(sumSquares / length);
             Console.WriteLine("{\"type\":\"segment\",\"index\":" + segmentIndex +
                 ",\"file\":\"" + Path.GetFileName(path) + "\",\"seconds\":" + seconds.ToString("F2") +
-                ",\"rms\":" + rms.ToString("F5") + "}");
+                ",\"rms\":" + rms.ToString("F5") + ",\"reason\":\"" + reason + "\"}");
             Console.Out.Flush();
-            writer.Dispose();
-            stream.Dispose();
-            writer = null;
-            stream = null;
-            recent.Clear();
-            frames = 0;
-            sumSquares = 0;
         }
 
         public void Close()
         {
             if (disposed) return;
             disposed = true;
-            if (stream != null && frames > 0) Emit();
+            // The tail of a stopped recording is only worth a file when it holds
+            // actual audio; a quiet fragment just becomes a junk segment.
+            if (buffer.Count > 0 && BufferRms() >= DiscardRms) Emit(buffer.Count, "pause");
         }
     }
 
