@@ -306,6 +306,8 @@ namespace DshAudio
         readonly int quietFrames;
         readonly int dipLookback;
         readonly int dipWindow;
+        readonly int draftStepFrames;
+        readonly int draftMinFrames;
         readonly int frameFrames;
         // Levels are tricky on this machine: the loopback can run quiet (a
         // full-volume video measures ~0.01 RMS) while room/music noise sits
@@ -329,6 +331,8 @@ namespace DshAudio
         const double CutDepthRatio = 0.2;
         readonly List<short> buffer = new List<short>(16000 * 16);
         int segmentIndex;
+        int draftCount;
+        int draftAt;
         bool disposed;
 
         public SegmentWriter(string outDir, int sampleRate, double minSeconds, int maxSeconds)
@@ -341,6 +345,8 @@ namespace DshAudio
             quietFrames = sampleRate * 3 / 5;          // 600 ms of real pause
             dipLookback = sampleRate * 3;              // search the last 3 s
             dipWindow = sampleRate * 2 / 5;            // 400 ms: a gap, not a consonant
+            draftStepFrames = sampleRate * 3 / 2;      // a draft every 1.5 s
+            draftMinFrames = sampleRate;               // but not before 1 s of audio
             frameFrames = sampleRate / 50;             // 20 ms energy frames
         }
 
@@ -349,7 +355,7 @@ namespace DshAudio
             for (int i = 0; i < count; i++) buffer.Add(samples[i]);
             if (buffer.Count < minFrames) return;
             double peak = PeakFrameRms(buffer.Count);
-            if (peak < FloorRms) { buffer.Clear(); return; }
+            if (peak < FloorRms) { buffer.Clear(); draftAt = 0; draftCount = 0; return; }
             if (buffer.Count >= quietFrames && peak >= SpeechFloorRms && TailMaxRms(quietFrames) < PauseLevel(peak))
             {
                 // 600 ms with no speech-level frame at all: a real pause. A quiet
@@ -364,7 +370,30 @@ namespace DshAudio
                 double level = width > 0 ? FrameRms(cut, width, buffer.Count) : 1;
                 double takePeak = PeakFrameRms(cut);
                 Emit(cut, takePeak > 0 && level / takePeak <= CutDepthRatio ? "pause" : "cut");
+                return;
             }
+            // The take is still open: publish what it holds so far, so the first
+            // words can be recognised long before the take ends at a pause.
+            MaybeDraft();
+        }
+
+        /// <summary>
+        /// Write the audio collected so far as a "draft" file. The controller
+        /// recognises it and shows the text live; the final segment replaces it.
+        /// </summary>
+        void MaybeDraft()
+        {
+            if (buffer.Count < draftMinFrames) return;
+            if (buffer.Count < draftAt + draftStepFrames) return;
+            draftAt = buffer.Count;
+            draftCount++;
+            string path = Path.Combine(outDir, "draft-" + (segmentIndex + 1).ToString("D6") +
+                "-" + draftCount.ToString("D2") + ".wav");
+            WriteWav(path, 0, buffer.Count);
+            double seconds = (double)buffer.Count / sampleRate;
+            Console.WriteLine("{\"type\":\"draft\",\"file\":\"" + Path.GetFileName(path) +
+                "\",\"seconds\":" + seconds.ToString("F2") + "}");
+            Console.Out.Flush();
         }
 
         static double PauseLevel(double peak)
@@ -497,12 +526,33 @@ namespace DshAudio
 
             segmentIndex++;
             string path = Path.Combine(outDir, "seg-" + segmentIndex.ToString("D6") + ".wav");
+            double sumSquares = WriteWav(path, begin, kept);
+            // This take is done: its drafts are stale, and the next take starts a
+            // fresh draft cadence.
+            DeleteDrafts(segmentIndex);
+            draftAt = 0;
+            draftCount = 0;
+            buffer.RemoveRange(0, length);
+            double seconds = (double)kept / sampleRate;
+            double rms = Math.Sqrt(sumSquares / kept);
+            Console.WriteLine("{\"type\":\"segment\",\"index\":" + segmentIndex +
+                ",\"file\":\"" + Path.GetFileName(path) + "\",\"seconds\":" + seconds.ToString("F2") +
+                ",\"rms\":" + rms.ToString("F5") + ",\"reason\":\"" + (reason == "cut" ? "cut" : "pause") + "\"}");
+            Console.Out.Flush();
+        }
+
+        /// <summary>
+        /// Write samples [from, from + length) of the buffer as 16 kHz mono WAV and
+        /// return the sum of squares of what was written.
+        /// </summary>
+        double WriteWav(string path, int from, int length)
+        {
             double sumSquares = 0;
             using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
             using (var writer = new BinaryWriter(stream))
             {
                 writer.Write(new byte[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
-                writer.Write((uint)(36 + kept * 2));
+                writer.Write((uint)(36 + length * 2));
                 writer.Write(new byte[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E' });
                 writer.Write(new byte[] { (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
                 writer.Write((uint)16);
@@ -513,24 +563,31 @@ namespace DshAudio
                 writer.Write((ushort)2);
                 writer.Write((ushort)16);
                 writer.Write(new byte[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
-                writer.Write((uint)(kept * 2));
-                var bytes = new byte[kept * 2];
-                for (int i = 0; i < kept; i++)
+                writer.Write((uint)(length * 2));
+                var bytes = new byte[length * 2];
+                for (int i = 0; i < length; i++)
                 {
-                    short value = buffer[begin + i];
+                    short value = buffer[from + i];
                     sumSquares += (value / 32768.0) * (value / 32768.0);
                     bytes[i * 2] = (byte)(value & 0xFF);
                     bytes[i * 2 + 1] = (byte)((value >> 8) & 0xFF);
                 }
                 writer.Write(bytes);
             }
-            buffer.RemoveRange(0, length);
-            double seconds = (double)kept / sampleRate;
-            double rms = Math.Sqrt(sumSquares / kept);
-            Console.WriteLine("{\"type\":\"segment\",\"index\":" + segmentIndex +
-                ",\"file\":\"" + Path.GetFileName(path) + "\",\"seconds\":" + seconds.ToString("F2") +
-                ",\"rms\":" + rms.ToString("F5") + ",\"reason\":\"" + (reason == "cut" ? "cut" : "pause") + "\"}");
-            Console.Out.Flush();
+            return sumSquares;
+        }
+
+        /// <summary>Drop the draft files of a take the controller may not have read.</summary>
+        void DeleteDrafts(int index)
+        {
+            try
+            {
+                foreach (string old in Directory.GetFiles(outDir, "draft-" + index.ToString("D6") + "-*.wav"))
+                {
+                    try { File.Delete(old); } catch { }
+                }
+            }
+            catch { }
         }
 
         public string DebugJson()
