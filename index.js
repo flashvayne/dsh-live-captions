@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { registerApi } from './lib/api.js'
 import { MeetingController } from './lib/controller.js'
+import { createOverlayManager } from './lib/overlay-window.js'
 
 const LOG_LIMIT = 2 * 1024 * 1024
 
@@ -78,7 +79,7 @@ const TOOL_PARAMETERS = {
     action: {
       type: 'string',
       enum: ['start', 'stop', 'status', 'prepare', 'install_mt_deps', 'minutes', 'settings', 'records', 'models'],
-      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（首次使用会下载约 230 MB，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）；models 列出可用的云端模型与离线模型。',
+      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（首次使用会下载约 230 MB，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）；models 列出可用的云端大模型与离线模型。',
     },
     session: {
       type: 'string',
@@ -104,7 +105,7 @@ const TOOL_PARAMETERS = {
     translateEngine: {
       type: 'string',
       enum: ['cloud', 'builtin', 'local'],
-      description: '翻译引擎：cloud=云端模型；builtin=离线多语种模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端模型。',
+      description: '翻译引擎：cloud=云端大模型；builtin=离线多语种模型；local=本机 OpenAI 兼容服务（Ollama/LM Studio 等）。会议纪要始终用云端大模型。',
     },
     cloudProvider: {
       type: 'string',
@@ -117,6 +118,10 @@ const TOOL_PARAMETERS = {
     builtinModel: {
       type: 'string',
       description: '离线翻译模型 id：Xenova/m2m100_418M（多语种，600 MB）、Xenova/nllb-200-distilled-600M（中文更好，640 MB，CC-BY-NC）、Xenova/opus-mt-en-zh（英译中，90 MB）。',
+    },
+    mtProxy: {
+      type: 'string',
+      description: '离线模型下载代理，例如 http://127.0.0.1:7890；留空表示直连。设置后重新点「下载」生效。',
     },
     localBaseUrl: {
       type: 'string',
@@ -200,7 +205,7 @@ function summarize(state) {
   lines.push(`状态：${statusText}${state.error ? `（${state.error}）` : ''}`)
   lines.push(`识别：${state.asr.providerName ?? '未知'} / ${state.asr.phase}${state.asr.message ? `（${state.asr.message}）` : ''}`)
   lines.push(`来源：${state.settings.source}；源语言：${state.settings.sourceLanguage}；目标语言：${state.targetLabel}`)
-  lines.push(`翻译：${state.engine?.label ?? '未知'}（会议纪要固定用云端模型）`)
+  lines.push(`翻译：${state.engine?.label ?? '未知'}（会议纪要固定用云端大模型）`)
   if (state.mt && state.mt.state !== 'ready' && state.settings.translateEngine === 'builtin') {
     const progress = state.mt.progress ?? {}
     const percent = progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : null
@@ -249,15 +254,27 @@ export function apply(ctx, config) {
     log,
   })
 
+  // The always-on-top overlay window is its own OS process (PowerShell/WPF), so
+  // its availability and open state flow into every state payload and the panel
+  // knows whether it can offer the true "stays above everything" overlay.
+  const overlay = createOverlayManager({
+    ctx,
+    log,
+    onState: () => controller.bump(),
+  })
+  controller.overlayDescribe = () => overlay.describe()
+  log(`overlay: always-on-top window ${overlay.describe().supported ? 'available' : 'unavailable (will fall back to PiP / in-app)'}`)
+
   ctx.effect(() => () => {
     log('plugin unloading')
+    overlay.dispose()
     void controller.dispose()
   }, 'live-captions: controller')
 
   // Both the API and the agent tool depend on services that may not exist yet
   // during a cold boot; `ctx.inject` registers them as soon as each appears.
   ctx.inject(['webServer'], (scoped) => {
-    const dispose = registerApi({ ctx: scoped, controller, log })
+    const dispose = registerApi({ ctx: scoped, controller, overlay, log })
     scoped.effect(() => dispose, 'live-captions: api')
   })
 
@@ -299,6 +316,7 @@ export function apply(ctx, config) {
             cloudProvider: input.cloudProvider,
             cloudModel: input.cloudModel,
             builtinModel: input.builtinModel,
+            mtProxy: input.mtProxy,
             localBaseUrl: input.localBaseUrl,
             localModel: input.localModel,
             lyricFontSize: input.lyricFontSize,

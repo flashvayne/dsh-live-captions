@@ -22,10 +22,6 @@ window.__ModuleLoader__.load({
         'minutesHint': 'Open a new session with the transcript and the minutes prompt',
         'minutesNoSession': 'Could not open a session directly; the prompt is on your clipboard.',
         'generating': 'Writing minutes…',
-        'clear': 'Clear',
-        'clearList': 'Clear transcript',
-        'clearHint': 'Empties the panel list and truncates this session\'s transcript file, so its records disappear too. An already exported minutes file stays on disk.',
-        'confirmClear': 'Confirm clear?',
         'copy': 'Copy',
         'copied': 'Copied',
         'close': 'Close',
@@ -46,6 +42,9 @@ window.__ModuleLoader__.load({
         'recordsEmpty': 'No records yet.',
         'recordsPick': 'Session',
         'copyAll': 'Copy all',
+        'deleteRecord': 'Delete session',
+        'deleteCurrent': 'Delete this session (current)',
+        'confirmDelete': 'Confirm delete?',
         'fontSize': 'Size',
         'opacity': 'Opacity',
         'lock': 'Lock',
@@ -56,6 +55,7 @@ window.__ModuleLoader__.load({
         'overlayIdle': 'Overlay ready — captions appear once capture starts.',
         'pipUnavailable': 'This window cannot float above other apps; the overlay stays inside the app.',
         'pipHint': 'Shown in its own always-on-top window; flip the switch to close it.',
+        'overlayOsHint': 'In a system always-on-top window — it stays visible even when this app is minimised.',
         'collapse': 'Collapse',
         'expand': 'Expand',
         'overlayOff': 'Hidden — captions keep recording; turn it back on here.',
@@ -77,11 +77,13 @@ window.__ModuleLoader__.load({
         'translate': 'Translate',
         'translateOff': 'Translation is off: subtitles stay in the spoken language.',
         'engine': 'Translation engine',
-        'engine.cloud': 'Cloud model',
+        'engine.cloud': 'Cloud LLM',
         'engine.builtin': 'Offline model',
         'engine.local': 'Local server',
         'cloudModel': 'Model',
         'followDefault': 'Follow the dsh default',
+        'mtProxy': 'Download proxy',
+        'proxyHint': 'Model downloads go through this proxy (e.g. http://127.0.0.1:7890). Save, then press Download again.',
         'modelsLoading': 'Loading the model list…',
         'modelsFailed': 'Could not load the model list',
         'offlineModel': 'Offline model',
@@ -90,7 +92,7 @@ window.__ModuleLoader__.load({
         'loading': 'Loading',
         'loaded': 'Loaded',
         'cancel': 'Cancel',
-        'depsMissing': 'The built-in runtime (@huggingface/transformers) is not installed.',
+        'depsMissing': 'The built-in runtime (@huggingface/transformers + undici) is not installed.',
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
         'retry': 'Retry',
@@ -128,10 +130,6 @@ window.__ModuleLoader__.load({
         'minutesHint': '在新会话里打开转写和纪要提示词',
         'minutesNoSession': '无法直接打开新会话，提示词已复制到剪贴板。',
         'generating': '正在生成纪要…',
-        'clear': '清空',
-        'clearList': '清空字幕列表',
-        'clearHint': '清空面板里的列表，并清空本次会话的转写文件（「记录」里也会消失）；已经导出的纪要文件仍在磁盘上。',
-        'confirmClear': '确认清空？',
         'copy': '复制',
         'copied': '已复制',
         'close': '关闭',
@@ -152,6 +150,9 @@ window.__ModuleLoader__.load({
         'recordsEmpty': '还没有记录。',
         'recordsPick': '会话',
         'copyAll': '复制全部',
+        'deleteRecord': '删除此会话',
+        'deleteCurrent': '删除此会话（当前）',
+        'confirmDelete': '确认删除？',
         'fontSize': '字号',
         'opacity': '透明度',
         'lock': '锁定',
@@ -162,6 +163,7 @@ window.__ModuleLoader__.load({
         'overlayIdle': '浮层已就绪，开始采集后显示字幕。',
         'pipUnavailable': '当前窗口无法浮在其他应用之上，浮层只能留在应用内。',
         'pipHint': '浮层已放到独立的置顶窗口；关闭开关即可收回。',
+        'overlayOsHint': '已在系统置顶窗口显示——最小化本应用也会继续显示。',
         'collapse': '折叠',
         'expand': '展开',
         'overlayOff': '已隐藏，字幕仍在记录；需要时在这里重新打开。',
@@ -183,11 +185,13 @@ window.__ModuleLoader__.load({
         'translate': '翻译字幕',
         'translateOff': '未开启翻译：字幕只显示识别到的原文。',
         'engine': '翻译引擎',
-        'engine.cloud': '云端模型',
+        'engine.cloud': '云端大模型',
         'engine.builtin': '离线模型',
         'engine.local': '本地推理服务',
         'cloudModel': '模型',
         'followDefault': '跟随 dsh 默认模型',
+        'mtProxy': '下载代理',
+        'proxyHint': '模型下载走这个代理（如 http://127.0.0.1:7890）；保存后重新点「下载」生效。',
         'modelsLoading': '正在读取模型列表…',
         'modelsFailed': '读取模型列表失败',
         'offlineModel': '离线模型',
@@ -196,7 +200,7 @@ window.__ModuleLoader__.load({
         'loading': '加载中',
         'loaded': '已加载',
         'cancel': '取消',
-        'depsMissing': '内置推理依赖（@huggingface/transformers）未安装。',
+        'depsMissing': '内置推理依赖（@huggingface/transformers、undici）未安装。',
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
         'retry': '重试',
@@ -263,6 +267,34 @@ window.__ModuleLoader__.load({
       const total = Math.floor(ms / 1000)
       const pad = (value) => String(value).padStart(2, '0')
       return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`
+    }
+
+    /** "2026-11-20 21:31:00" for a session picker row. */
+    function formatClock(value) {
+      const ms = typeof value === 'number' ? value : Date.parse(value)
+      if (!Number.isFinite(ms)) return null
+      const date = new Date(ms)
+      const pad = (part) => String(part).padStart(2, '0')
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} `
+        + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+    }
+
+    /** Compact length like 45s / 30m / 1h05m for a session picker row. */
+    function formatDurationShort(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return null
+      const total = Math.round(ms / 1000)
+      if (total < 60) return `${total}s`
+      const minutes = Math.floor(total / 60)
+      if (minutes < 60) return `${minutes}m`
+      return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}m`
+    }
+
+    /** Dropdown label: start time, how long it ran, how many lines. */
+    function sessionLabel(session, unit) {
+      const clock = formatClock(session.startedAt) ?? String(session.id ?? '')
+      const length = formatDurationShort(session.durationMs) ?? '0m'
+      const count = session.entries ? ` · ${session.entries}${unit ? ` ${unit}` : ''}` : ''
+      return `${clock} · ${length}${count}`
     }
 
     /** Escape text for the hand-built Picture-in-Picture markup. */
@@ -604,8 +636,9 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState('')
       const [notice, setNotice] = useState('')
       const [copied, setCopied] = useState(false)
-      const [clearArmed, setClearArmed] = useState(false)
-      const clearArmRef = useRef(null)
+      // Two-step confirm for deleting the selected records session.
+      const [deleteArmed, setDeleteArmed] = useState(false)
+      const deleteArmRef = useRef(null)
       const sinceRef = useRef(0)
       const sessionRef = useRef(null)
       const aliveRef = useRef(true)
@@ -721,7 +754,7 @@ window.__ModuleLoader__.load({
           if (!response.ok || payload?.ok === false) {
             setNotice(payload?.error ?? `请求失败（${response.status}）`)
           } else {
-            if (body.action === 'clear') reset()
+            if (body.action === 'clear' || body.action === 'delete_session') reset()
             if (payload.state) applyState(payload.state)
           }
           return payload
@@ -1076,6 +1109,10 @@ window.__ModuleLoader__.load({
       const lyricH = Math.min(lyricSize === null ? seedH : lyricSize.h, viewportH - 16)
       const lyricLocked = settings.lyricLocked === true
       const lyricVisible = settings.lyricVisible !== false
+      // The host's own always-on-top window is the real "stays when minimised"
+      // overlay; PiP and the in-page box are progressively weaker fallbacks.
+      const overlaySupported = state?.overlay?.supported === true
+      const overlayOpen = state?.overlay?.open === true
       const lyricStyle = {
         '--mc-lyric-size': `${settings.lyricFontSize ?? 22}px`,
         opacity: settings.lyricOpacity ?? 0.92,
@@ -1198,7 +1235,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
 
-        lyricVisible && !pipActive ? h('div', {
+        lyricVisible && !pipActive && !overlayOpen ? h('div', {
           ref: lyricRef,
           className: `mc-lyric${lyricLocked ? ' mc-lyric-locked' : ''}`,
           key: 'lyric',
@@ -1347,7 +1384,7 @@ window.__ModuleLoader__.load({
               'aria-label': t('recordsPick'),
               onChange: (event) => { void loadRecords(event.target.value) },
             }, (recordsData?.sessions ?? []).map((session) => h('option', { key: session.id, value: session.id },
-              `${session.id}${session.entries ? ` · ${session.entries}` : ''}`))),
+              sessionLabel(session, t('lines'))))),
             h('button', {
               className: 'mc-icon-btn', key: 'close', type: 'button',
               onClick: () => setRecordsOpen(false), 'aria-label': t('close'), title: t('close'),
@@ -1368,6 +1405,32 @@ window.__ModuleLoader__.load({
           h('div', { className: 'mc-records-foot', key: 'foot' }, [
             h('span', { className: 'mc-hint', key: 'count' },
               `${(recordsData?.records?.entries ?? []).length} ${t('lines')}`),
+            h('button', {
+              className: 'mc-ghost-btn', key: 'delete', type: 'button',
+              disabled: busy !== '' || recordsData?.sessionId == null,
+              title: deleteArmed ? ''
+                : (recordsData?.sessionId === (sessionRef.current ?? undefined) ? t('deleteCurrent') : t('deleteRecord')),
+              onClick: () => {
+                if (!deleteArmed) {
+                  setDeleteArmed(true)
+                  clearTimeout(deleteArmRef.current)
+                  deleteArmRef.current = setTimeout(() => setDeleteArmed(false), 4000)
+                  return
+                }
+                clearTimeout(deleteArmRef.current)
+                deleteArmRef.current = null
+                setDeleteArmed(false)
+                const target = recordsData?.sessionId ?? null
+                if (target === null) return
+                void command({ action: 'delete_session', session: target }).then((payload) => {
+                  if (payload?.ok === false) return
+                  // The deleted rows may be the live session's own list; drop the
+                  // stale view and let the next poll rebuild what is left.
+                  reset()
+                  void loadRecords()
+                })
+              },
+            }, deleteArmed ? t('confirmDelete') : t('deleteRecord')),
             h('button', {
               className: 'mc-ghost-btn', key: 'copy', type: 'button',
               disabled: (recordsData?.records?.entries ?? []).length === 0,
@@ -1510,16 +1573,24 @@ window.__ModuleLoader__.load({
                     onClick: () => {
                       if (lyricVisible) {
                         closePip()
-                        save({ lyricVisible: false })
+                        if (overlayOpen) void command({ action: 'overlay_close' })
+                        else save({ lyricVisible: false })
                         return
                       }
                       save({ lyricVisible: true })
-                      // Prefer a real always-on-top window; the in-app overlay is
-                      // the fallback when the browser refuses one.
+                      if (overlaySupported) {
+                        // A real OS window needs no user gesture and survives
+                        // minimising this app; errors surface via `notice`.
+                        void command({ action: 'overlay_open' })
+                        return
+                      }
+                      // Prefer PiP when the host cannot open its own topmost
+                      // window; the in-app overlay is the last resort.
                       void openPip()
                     },
                   }),
                 ]),
+                overlayOpen ? h('div', { className: 'mc-hint', key: 'os' }, t('overlayOsHint')) : null,
                 pipActive ? h('div', { className: 'mc-hint', key: 'pip' }, t('pipHint')) : null,
                 lyricVisible ? null : h('div', { className: 'mc-hint', key: 'off' }, t('overlayOff')),
               ]),
@@ -1719,6 +1790,21 @@ window.__ModuleLoader__.load({
                           mt.state === 'failed'
                             ? h('div', { className: 'mc-error', key: 'failed' }, `${t('mtFailed')}：${mt.error ?? ''}`)
                             : null,
+                          // A failed download is most often a blocked route: the
+                          // error names the exact URLs, and a proxy fixes the
+                          // route. Offer the field on failure (or once set).
+                          mt.state === 'failed' || (settings.mtProxy ?? '') !== ''
+                            ? h('label', { className: 'mc-field', key: 'proxy', style: { marginTop: '7px' } }, [
+                                h('span', { key: 'label' }, t('mtProxy')),
+                                h(TextField, {
+                                  key: 'input', value: settings.mtProxy ?? '',
+                                  placeholder: 'http://127.0.0.1:7890',
+                                  ariaLabel: t('mtProxy'),
+                                  onCommit: (value) => command({ action: 'settings', settings: { mtProxy: value } }),
+                                }),
+                                h('span', { key: 'hint', className: 'mc-hint' }, t('proxyHint')),
+                              ])
+                            : null,
                           mtLoadingThis && mtPercent !== null
                             ? h('div', {
                                 className: 'mc-progress', key: 'progress',
@@ -1777,28 +1863,6 @@ window.__ModuleLoader__.load({
                     state?.engine?.label
                       ? h('div', { className: 'mc-hint', key: 'engine-label' }, state.engine.label)
                       : null,
-
-                    // Destructive: it also truncates this session's transcript
-                    // file, so it keeps the two-step confirm and says so.
-                    h('div', { className: 'mc-grp', key: 'clear-group' }, [
-                      h('button', {
-                        className: 'mc-ghost-btn', key: 'clear', type: 'button',
-                        disabled: busy !== '' || entries.length === 0,
-                        onClick: () => {
-                          if (!clearArmed) {
-                            setClearArmed(true)
-                            clearTimeout(clearArmRef.current)
-                            clearArmRef.current = setTimeout(() => setClearArmed(false), 4000)
-                            return
-                          }
-                          clearTimeout(clearArmRef.current)
-                          clearArmRef.current = null
-                          setClearArmed(false)
-                          void command({ action: 'clear' })
-                        },
-                      }, clearArmed ? t('confirmClear') : t('clearList')),
-                      h('div', { className: 'mc-hint', key: 'hint' }, t('clearHint')),
-                    ]),
                   ])
                 : null,
             ]),
