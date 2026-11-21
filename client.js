@@ -627,7 +627,9 @@ window.__ModuleLoader__.load({
       const [liveOpen, setLiveOpen] = useState(false)
       // A detached, always-on-top window is the overlay's preferred home.
       const [pipActive, setPipActive] = useState(false)
-      const [transcriptCollapsed, setTranscriptCollapsed] = useState(false)
+      // The live transcript starts folded: the overlay is where the captions are
+      // read, and the panel stays a compact control surface.
+      const [transcriptCollapsed, setTranscriptCollapsed] = useState(true)
       const [showAdvanced, setShowAdvanced] = useState(false)
       const [busy, setBusy] = useState('')
       const [notice, setNotice] = useState('')

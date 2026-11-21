@@ -259,6 +259,8 @@ export function apply(ctx, config) {
     onState: () => controller.bump(),
   })
   controller.overlayDescribe = () => overlay.describe()
+  // Starting a session shows the overlay; the panel's switch can still hide it.
+  controller.overlayOpen = () => overlay.open(controller.settings)
   log(`overlay: always-on-top window ${overlay.describe().supported ? 'available' : 'unavailable (will fall back to PiP / in-app)'}`)
 
   ctx.effect(() => () => {
