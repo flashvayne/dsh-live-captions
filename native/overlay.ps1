@@ -210,6 +210,14 @@ $grid.Children.Add($scroll) | Out-Null
 $root.Child = $grid
 $win.Content = $root
 
+# One safety net for every callback: a failure inside a timer or a mouse handler
+# closes nothing, it only gets logged with its line number.
+$win.Dispatcher.Add_UnhandledException({
+  param($sender, $event)
+  Write-OverlayFailure $event.Exception
+  $event.Handled = $true
+})
+
 # ------------------------------------------------------------------ state
 
 $script:settings = @{
@@ -277,6 +285,31 @@ function Get-WorkAreaDip {
   $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
   $scale = if ($script:scale -gt 0) { $script:scale } else { 1.0 }
   return @{ x = $area.Left / $scale; y = $area.Top / $scale; w = $area.Width / $scale; h = $area.Height / $scale }
+}
+
+# A WPF DispatcherTimer callback that throws kills the whole window process. A
+# rendering or geometry hiccup must never take the overlay down, so every callback
+# body runs inside this guard; the exact error and line land in a log file.
+function Write-OverlayFailure {
+  param($Failure)
+  try {
+    if ($Failure -is [System.Management.Automation.ErrorRecord]) {
+      $exception = $Failure.Exception
+      $stack = $Failure.ScriptStackTrace
+    } else {
+      $exception = $Failure
+      $stack = $exception.StackTrace
+    }
+    $text = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ' + $exception.GetType().FullName + ': '
+      + $exception.Message + ' @ ' + $stack
+    [System.IO.File]::AppendAllText((Join-Path $env:TEMP 'lc-overlay-error.log'), $text + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+    # Write the line as UTF-8 bytes so the Host's log (which decodes stderr as
+    # UTF-8) keeps the message readable instead of mojibake.
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($text + [Environment]::NewLine)
+    $stream = [Console]::OpenStandardError()
+    $stream.Write($bytes, 0, $bytes.Length)
+    $stream.Flush()
+  } catch { }
 }
 
 $root.Add_PreviewMouseMove({
@@ -500,17 +533,21 @@ $timer = New-Object System.Windows.Threading.DispatcherTimer
 $timer.Interval = [TimeSpan]::FromMilliseconds(400)
 $script:misses = 0
 $timer.Add_Tick({
-  if (-not $script:running) { $timer.Stop(); $win.Close(); return }
-  $state = Invoke-LcApi -Method GET -Path '/state?since=0'
-  if ($null -eq $state -or $null -eq $state.state) {
-    # The Host is gone (app quit or plugin unloaded): never leave an orphan
-    # window floating on top of everything forever.
-    $script:misses += 1
-    if ($script:misses -gt 15) { $timer.Stop(); $win.Close() }
-    return
+  try {
+    if (-not $script:running) { $timer.Stop(); $win.Close(); return }
+    $state = Invoke-LcApi -Method GET -Path '/state?since=0'
+    if ($null -eq $state -or $null -eq $state.state) {
+      # The Host is gone (app quit or plugin unloaded): never leave an orphan
+      # window floating on top of everything forever.
+      $script:misses += 1
+      if ($script:misses -gt 15) { $timer.Stop(); $win.Close() }
+      return
+    }
+    $script:misses = 0
+    Update-Entries -State $state.state
+  } catch {
+    Write-OverlayFailure $_
   }
-  $script:misses = 0
-  Update-Entries -State $state.state
 })
 $timer.Start()
 
@@ -520,52 +557,60 @@ $geomTimer.Interval = [TimeSpan]::FromMilliseconds(1200)
 $script:lastRect = ''
 $script:lastSaved = ''
 $geomTimer.Add_Tick({
-  $signature = [string][int]$win.Left + ',' + [string][int]$win.Top + ',' + [string][int]$win.Width + ',' + [string][int]$win.Height
-  if ($signature -eq $script:lastRect) { return }
-  if ($signature -eq $script:lastSaved) { return }
-  $script:lastRect = $signature
-  $script:lastSaved = $signature
-  Save-Geometry
+  try {
+    $signature = [string][int]$win.Left + ',' + [string][int]$win.Top + ',' + [string][int]$win.Width + ',' + [string][int]$win.Height
+    if ($signature -eq $script:lastRect) { return }
+    if ($signature -eq $script:lastSaved) { return }
+    $script:lastRect = $signature
+    $script:lastSaved = $signature
+    Save-Geometry
+  } catch {
+    Write-OverlayFailure $_
+  }
 })
 $geomTimer.Start()
 
 $win.Add_Loaded({
-  $script:scale = Get-Scale
-  $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-  $areaW = $area.Width / $script:scale
-  $areaH = $area.Height / $script:scale
-  $areaX = $area.Left / $script:scale
-  $areaY = $area.Top / $script:scale
-  $w = 748
-  $h = 235
-  if ($null -ne $geometry) {
-    if ($null -ne $geometry.w) { $w = [int]$geometry.w }
-    if ($null -ne $geometry.h) { $h = [int]$geometry.h }
-  }
-  $w = [Math]::Max(320, [Math]::Min($w, $areaW - 16))
-  $h = [Math]::Max(140, [Math]::Min($h, $areaH - 16))
-  $x = $areaX + [int](($areaW - $w) / 2)
-  $y = $areaY + $areaH - $h - [int]($areaH * 0.12)
-  if ($null -ne $geometry) {
-    if ($null -ne $geometry.x) { $x = [int]$geometry.x }
-    if ($null -ne $geometry.y) { $y = [int]$geometry.y }
-  }
-  $x = [Math]::Max($areaX + 8, [Math]::Min($x, $areaX + $areaW - $w - 8))
-  $y = [Math]::Max($areaY + 8, [Math]::Min($y, $areaY + $areaH - $h - 8))
-  $win.Left = $x; $win.Top = $y; $win.Width = $w; $win.Height = $h
-  # Prime the view immediately instead of waiting for the first tick.
-  $state = Invoke-LcApi -Method GET -Path '/state?since=0'
-  if ($null -ne $state -and $null -ne $state.state) { Update-Entries -State $state.state }
-  # A one-line diagnostic makes DPI/geometry bugs visible without a debugger.
   try {
-    $hwnd = (New-Object System.Windows.Interop.WindowInteropHelper($win)).Handle
-    $rect = New-Object LcRect+RECT
-    [void][LcRect]::GetWindowRect($hwnd, [ref]$rect)
-    $diag = 'scale=' + $script:scale + ' dip=' + [int]$win.Left + ',' + [int]$win.Top + ' size=' + [int]$win.Width + 'x' + [int]$win.Height
-    $diag += ' phys=' + $rect.Left + ',' + $rect.Top + ' ' + ($rect.Right - $rect.Left) + 'x' + ($rect.Bottom - $rect.Top)
-    $diag += ' area=' + $area.Width + 'x' + $area.Height + ' dpi=' + [System.Windows.Media.VisualTreeHelper]::GetDpi($win).DpiScaleX
-    [System.IO.File]::WriteAllText((Join-Path $env:TEMP 'lc-overlay.log'), $diag)
-  } catch { }
+    $script:scale = Get-Scale
+    $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $areaW = $area.Width / $script:scale
+    $areaH = $area.Height / $script:scale
+    $areaX = $area.Left / $script:scale
+    $areaY = $area.Top / $script:scale
+    $w = 748
+    $h = 235
+    if ($null -ne $geometry) {
+      if ($null -ne $geometry.w) { $w = [int]$geometry.w }
+      if ($null -ne $geometry.h) { $h = [int]$geometry.h }
+    }
+    $w = [Math]::Max(320, [Math]::Min($w, $areaW - 16))
+    $h = [Math]::Max(140, [Math]::Min($h, $areaH - 16))
+    $x = $areaX + [int](($areaW - $w) / 2)
+    $y = $areaY + $areaH - $h - [int]($areaH * 0.12)
+    if ($null -ne $geometry) {
+      if ($null -ne $geometry.x) { $x = [int]$geometry.x }
+      if ($null -ne $geometry.y) { $y = [int]$geometry.y }
+    }
+    $x = [Math]::Max($areaX + 8, [Math]::Min($x, $areaX + $areaW - $w - 8))
+    $y = [Math]::Max($areaY + 8, [Math]::Min($y, $areaY + $areaH - $h - 8))
+    $win.Left = $x; $win.Top = $y; $win.Width = $w; $win.Height = $h
+    # Prime the view immediately instead of waiting for the first tick.
+    $state = Invoke-LcApi -Method GET -Path '/state?since=0'
+    if ($null -ne $state -and $null -ne $state.state) { Update-Entries -State $state.state }
+    # A one-line diagnostic makes DPI/geometry bugs visible without a debugger.
+    try {
+      $hwnd = (New-Object System.Windows.Interop.WindowInteropHelper($win)).Handle
+      $rect = New-Object LcRect+RECT
+      [void][LcRect]::GetWindowRect($hwnd, [ref]$rect)
+      $diag = 'scale=' + $script:scale + ' dip=' + [int]$win.Left + ',' + [int]$win.Top + ' size=' + [int]$win.Width + 'x' + [int]$win.Height
+      $diag += ' phys=' + $rect.Left + ',' + $rect.Top + ' ' + ($rect.Right - $rect.Left) + 'x' + ($rect.Bottom - $rect.Top)
+      $diag += ' area=' + $area.Width + 'x' + $area.Height + ' dpi=' + [System.Windows.Media.VisualTreeHelper]::GetDpi($win).DpiScaleX
+      [System.IO.File]::WriteAllText((Join-Path $env:TEMP 'lc-overlay.log'), $diag)
+    } catch { }
+  } catch {
+    Write-OverlayFailure $_
+  }
 })
 
 $win.Add_Closed({
