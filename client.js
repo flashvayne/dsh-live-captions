@@ -18,6 +18,8 @@ window.__ModuleLoader__.load({
         'downloadModel': 'Download model (≈230 MB)',
         'firstRunHint': 'The recognition model is not bundled: it downloads in the background as soon as the plugin is active (about 230 MB, from hf-mirror in mainland China) and is cached on this machine. Audio is recognised locally and never uploaded.',
         'preparing': 'Preparing model',
+        'downloadTitle': 'Downloading the speech recognition model',
+        'downloadHint': 'About 230 MB, one time only. After that the audio is recognised on this machine — nothing is uploaded.',
         'minutes': 'Minutes',
         'minutesHint': 'Open a new session with the transcript and the minutes prompt',
         'minutesNoSession': 'Could not open a session directly; the prompt is on your clipboard.',
@@ -124,6 +126,8 @@ window.__ModuleLoader__.load({
         'downloadModel': '下载识别模型（约 230 MB）',
         'firstRunHint': '识别模型不在安装包里：插件启用后会在后台自动下载约 230 MB（国内走 hf-mirror），之后本机缓存、不再联网；语音在本机识别，音频不会上传。',
         'preparing': '正在准备模型',
+        'downloadTitle': '正在下载语音识别模型',
+        'downloadHint': '约 230 MB，只需要下载这一次；之后语音在这台机器上识别，不联网也不上传。',
         'minutes': '生成纪要',
         'minutesHint': '在新会话里打开转写和纪要提示词',
         'minutesNoSession': '无法直接打开新会话，提示词已复制到剪贴板。',
@@ -556,6 +560,16 @@ window.__ModuleLoader__.load({
 .mc-input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .mc-progress{height:3px;border-radius:2px;background:var(--dsw-alias-bg-layer-2);overflow:hidden;flex:0 0 auto}
 .mc-progress > span{display:block;height:100%;background:var(--dsw-alias-brand-primary);transition:width .3s}
+/* First-run model download: a small card instead of a bare bar, so a background
+   download is something the user can read and not just a floored progress line. */
+.mc-download{pointer-events:none;display:flex;flex-direction:column;gap:6px;padding:9px 10px;border-radius:9px;
+  background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1)}
+.mc-download-head{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--dsw-alias-label-primary)}
+.mc-download-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-download-pct{flex:0 0 auto;font-size:11px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary)}
+.mc-download .mc-progress{width:100%}
+.mc-download-hint{font-size:10.5px;color:var(--dsw-alias-label-secondary);line-height:1.5}
+.mc-pill-progress{font-size:10.5px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
 .mc-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.55;overflow-wrap:anywhere}
 .mc-error{font-size:11px;color:var(--dsw-alias-state-error-primary);line-height:1.55;overflow-wrap:anywhere}
 .mc-warn{font-size:11px;color:var(--dsw-alias-state-warn-primary);line-height:1.55;overflow-wrap:anywhere}
@@ -1495,11 +1509,20 @@ window.__ModuleLoader__.load({
               state?.translationError ? h('div', { className: 'mc-error', key: 'tr-error' }, `${t('translationFailed')}: ${state.translationError}`) : null,
               (state?.warnings ?? []).map((warning, index) =>
                 h('div', { className: 'mc-warn', key: `warn-${index}` }, warning)),
-              asrBusy && percent !== null
-                ? h('div', {
-                    className: 'mc-progress', key: 'progress',
-                    role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent,
-                  }, h('span', { style: { width: `${percent}%` } }))
+              // First run: the model is fetching itself in the background, so say
+              // what is happening, how big it is and that it happens once.
+              asrBusy
+                ? h('div', { className: 'mc-download', key: 'download', role: 'status' }, [
+                    h('div', { className: 'mc-download-head', key: 'head' }, [
+                      h('div', { className: 'mc-spin', key: 'spin' }),
+                      h('span', { className: 'mc-download-title', key: 'title' }, t('downloadTitle')),
+                      h('span', { className: 'mc-download-pct', key: 'pct' },
+                        percent === null ? t('preparing') : `${percent}%`),
+                    ]),
+                    h('div', { className: 'mc-progress', key: 'bar' },
+                      h('span', { style: { width: `${percent === null ? 100 : percent}%` } })),
+                    h('div', { className: 'mc-download-hint', key: 'hint' }, t('downloadHint')),
+                  ])
                 : null,
               !modelReady && !asrBusy && asr.available
                 ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))
@@ -1833,14 +1856,18 @@ window.__ModuleLoader__.load({
                     !modelReady && !asrBusy && asr.available
                       ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))
                       : null,
-                    asrBusy && percent !== null
-                      ? h('div', {
-                          className: 'mc-progress', key: 'progress',
-                          role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent,
-                        }, h('span', { style: { width: `${percent}%` } }))
-                      : null,
-                    asrBusy && percent === null
-                      ? h('div', { className: 'mc-hint', key: 'hint' }, `${t('preparing')} · ${formatBytes(progress.completedBytes)}`)
+                    asrBusy
+                      ? h('div', { className: 'mc-download', key: 'download', role: 'status' }, [
+                          h('div', { className: 'mc-download-head', key: 'head' }, [
+                            h('div', { className: 'mc-spin', key: 'spin' }),
+                            h('span', { className: 'mc-download-title', key: 'title' }, t('downloadTitle')),
+                            h('span', { className: 'mc-download-pct', key: 'pct' },
+                              percent === null ? t('preparing') : `${percent}%`),
+                          ]),
+                          h('div', { className: 'mc-progress', key: 'bar' },
+                            h('span', { style: { width: `${percent === null ? 100 : percent}%` } })),
+                          h('div', { className: 'mc-download-hint', key: 'hint' }, t('downloadHint')),
+                        ])
                       : null,
 
                     state?.engine?.label
@@ -1887,6 +1914,12 @@ window.__ModuleLoader__.load({
               },
             }),
             h('span', { key: 'label' }, t('title')),
+            // A background model download has to be visible with the panel shut,
+            // otherwise the app silently pulls 230 MB.
+            asrBusy
+              ? h('span', { className: 'mc-pill-progress', key: 'asr-progress' },
+                  percent === null ? t('preparing') : `${percent}%`)
+              : null,
             running
               ? h('span', { className: 'mc-bar', key: 'bars' },
                   [0, 1, 2, 3].map((index) => h('i', { key: index })))
