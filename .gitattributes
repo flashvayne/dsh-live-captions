@@ -1,0 +1,10 @@
+# Keep every checkout LF. The client bundle's stylesheet is extracted from
+# client.js by searching for a "\n`\n" boundary, and a CRLF checkout makes the
+# panel render without styles.
+* text=auto eol=lf
+
+# Binary assets: never convert.
+*.png binary
+*.onnx binary
+*.wav binary
+*.tgz binary

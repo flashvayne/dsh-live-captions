@@ -1,1 +1,1 @@
-![A caption card floating over a window, showing a small waveform, the recognised source line and the translated line](preview.svg)
+![An always-on-top caption card over a window: a thin tool row with the close button on the right, then two captions, each with the recognised source line above the larger translated line](preview.svg)

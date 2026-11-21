@@ -10,7 +10,7 @@ Write-Host "== 1/4 客户端冒烟测试" -ForegroundColor Cyan
 node .test/client-check.mjs
 if ($LASTEXITCODE -ne 0) { Write-Host "client-check 失败，停止。" -ForegroundColor Red; exit 1 }
 
-Write-Host "== 2/4 打包预览（应只有 21 个文件、约 57 kB）" -ForegroundColor Cyan
+Write-Host "== 2/4 打包预览（28 个文件、约 234 kB；模型权重和 models/ 不进包）" -ForegroundColor Cyan
 npm pack --dry-run 2>&1 | Select-Object -Last 6
 
 Write-Host "== 3/4 npm publish" -ForegroundColor Cyan

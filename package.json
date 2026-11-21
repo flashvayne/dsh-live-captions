@@ -1,7 +1,7 @@
 {
   "name": "dsh-live-captions",
-  "version": "1.0.0",
-  "description": "Live multilingual captions in DeepSeek Harness: transcribes system audio and the microphone on this machine, translates each line, and floats the subtitles over the UI, with optional meeting minutes.",
+  "version": "1.0.1",
+  "description": "Live multilingual captions in DeepSeek Harness: local SenseVoice recognition of system audio and the microphone, per-line translation, a system always-on-top caption overlay, and one-click meeting minutes. Windows x64.",
   "type": "module",
   "license": "MIT",
   "author": {
