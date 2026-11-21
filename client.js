@@ -82,8 +82,6 @@ window.__ModuleLoader__.load({
         'engine.local': 'Local server',
         'cloudModel': 'Model',
         'followDefault': 'Follow the dsh default',
-        'mtProxy': 'Download proxy',
-        'proxyHint': 'Model downloads go through this proxy (e.g. http://127.0.0.1:7890). Save, then press Download again.',
         'modelsLoading': 'Loading the model list…',
         'modelsFailed': 'Could not load the model list',
         'offlineModel': 'Offline model',
@@ -92,7 +90,7 @@ window.__ModuleLoader__.load({
         'loading': 'Loading',
         'loaded': 'Loaded',
         'cancel': 'Cancel',
-        'depsMissing': 'The built-in runtime (@huggingface/transformers + undici) is not installed.',
+        'depsMissing': 'The built-in runtime (@huggingface/transformers) is not installed.',
         'mtPreparing': 'Preparing the built-in translation model',
         'mtFailed': 'Built-in model unavailable',
         'retry': 'Retry',
@@ -190,8 +188,6 @@ window.__ModuleLoader__.load({
         'engine.local': '本地推理服务',
         'cloudModel': '模型',
         'followDefault': '跟随 dsh 默认模型',
-        'mtProxy': '下载代理',
-        'proxyHint': '模型下载走这个代理（如 http://127.0.0.1:7890）；保存后重新点「下载」生效。',
         'modelsLoading': '正在读取模型列表…',
         'modelsFailed': '读取模型列表失败',
         'offlineModel': '离线模型',
@@ -200,7 +196,7 @@ window.__ModuleLoader__.load({
         'loading': '加载中',
         'loaded': '已加载',
         'cancel': '取消',
-        'depsMissing': '内置推理依赖（@huggingface/transformers、undici）未安装。',
+        'depsMissing': '内置推理依赖（@huggingface/transformers）未安装。',
         'mtPreparing': '正在准备内置翻译模型',
         'mtFailed': '内置模型不可用',
         'retry': '重试',
@@ -1789,21 +1785,6 @@ window.__ModuleLoader__.load({
                             : null,
                           mt.state === 'failed'
                             ? h('div', { className: 'mc-error', key: 'failed' }, `${t('mtFailed')}：${mt.error ?? ''}`)
-                            : null,
-                          // A failed download is most often a blocked route: the
-                          // error names the exact URLs, and a proxy fixes the
-                          // route. Offer the field on failure (or once set).
-                          mt.state === 'failed' || (settings.mtProxy ?? '') !== ''
-                            ? h('label', { className: 'mc-field', key: 'proxy', style: { marginTop: '7px' } }, [
-                                h('span', { key: 'label' }, t('mtProxy')),
-                                h(TextField, {
-                                  key: 'input', value: settings.mtProxy ?? '',
-                                  placeholder: 'http://127.0.0.1:7890',
-                                  ariaLabel: t('mtProxy'),
-                                  onCommit: (value) => command({ action: 'settings', settings: { mtProxy: value } }),
-                                }),
-                                h('span', { key: 'hint', className: 'mc-hint' }, t('proxyHint')),
-                              ])
                             : null,
                           mtLoadingThis && mtPercent !== null
                             ? h('div', {

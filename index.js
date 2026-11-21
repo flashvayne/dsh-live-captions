@@ -119,10 +119,6 @@ const TOOL_PARAMETERS = {
       type: 'string',
       description: '离线翻译模型 id：Xenova/m2m100_418M（多语种，600 MB）、Xenova/nllb-200-distilled-600M（中文更好，640 MB，CC-BY-NC）、Xenova/opus-mt-en-zh（英译中，90 MB）。',
     },
-    mtProxy: {
-      type: 'string',
-      description: '离线模型下载代理，例如 http://127.0.0.1:7890；留空表示直连。设置后重新点「下载」生效。',
-    },
     localBaseUrl: {
       type: 'string',
       description: '本地模型的 OpenAI 兼容地址，例如 http://127.0.0.1:11434/v1（Ollama）。',
@@ -316,7 +312,6 @@ export function apply(ctx, config) {
             cloudProvider: input.cloudProvider,
             cloudModel: input.cloudModel,
             builtinModel: input.builtinModel,
-            mtProxy: input.mtProxy,
             localBaseUrl: input.localBaseUrl,
             localModel: input.localModel,
             lyricFontSize: input.lyricFontSize,
