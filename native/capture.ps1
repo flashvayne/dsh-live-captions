@@ -385,6 +385,8 @@ namespace DshAudio
         {
             if (buffer.Count < draftMinFrames) return;
             if (buffer.Count < draftAt + draftStepFrames) return;
+            // Room noise must never be recognised as a caption of its own.
+            if (PeakFrameRms(buffer.Count) < SpeechFloorRms) return;
             draftAt = buffer.Count;
             draftCount++;
             string path = Path.Combine(outDir, "draft-" + (segmentIndex + 1).ToString("D6") +
