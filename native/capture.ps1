@@ -306,11 +306,14 @@ namespace DshAudio
         readonly int quietFrames;
         readonly int dipLookback;
         readonly int frameFrames;
-        // 400 ms of near-silence ends an utterance. Music or noise often keeps the
-        // level above this, which is why the hard cap below has to cut sensibly.
-        const double QuietRms = 0.005;
-        // Whole-segment level below which the buffer is thrown away (room noise).
-        const double DiscardRms = 0.008;
+        // Levels are tricky on this machine: the loopback can run quiet (a
+        // full-volume video measures ~0.01 RMS) while room/music noise sits
+        // around 0.003-0.005. So the pause test stays absolute (the original
+        // behaviour that produced good sentences), and only digital silence is
+        // dropped outright.
+        const double FloorRms = 0.0012;      // digital-ish silence, safe to drop
+        const double PauseRms = 0.004;       // 400 ms below this ends an utterance
+        const double KeepMarginSeconds = 0.15;
         readonly List<short> buffer = new List<short>(16000 * 12);
         int segmentIndex;
         bool disposed;
@@ -330,38 +333,62 @@ namespace DshAudio
         public void Write(short[] samples, int count)
         {
             for (int i = 0; i < count; i++) buffer.Add(samples[i]);
-            bool quietTail = buffer.Count >= minFrames && TailRms(quietFrames) < QuietRms;
+            if (buffer.Count < minFrames) return;
+            double peak = PeakFrameRms(buffer.Count);
+            if (peak < FloorRms) { buffer.Clear(); return; }
             if (buffer.Count >= hardFrames)
             {
-                // Ambient hum or a muted room must not produce 4 s files every
-                // four seconds: below this level there is nothing to recognise.
-                if (BufferRms() < DiscardRms) { buffer.Clear(); return; }
                 // A fixed 4 s cut lands mid-word; move it to the quietest 20 ms
                 // frame in the last 700 ms so it lands in a syllable gap instead.
                 Emit(FindQuietestCut(), "cut");
             }
-            else if (quietTail)
+            else if (TailRms(quietFrames) < PauseRms)
             {
-                if (BufferRms() < DiscardRms) { buffer.Clear(); return; }
+                // 400 ms below the pause level: the speaker paused.
                 Emit(buffer.Count, "pause");
             }
         }
 
-        double BufferRms()
+        /** Trimming keeps the speech and drops the silence around it. */
+        static double TrimRms(double peak)
         {
-            if (buffer.Count == 0) return 0;
+            double level = peak * 0.06;
+            return level < 0.0015 ? 0.0015 : level;
+        }
+
+        double FrameRms(int start, int frames, int limit)
+        {
+            if (start < 0) start = 0;
+            int end = Math.Min(start + frames, limit);
+            if (end <= start) return 0;
             double sum = 0;
-            for (int i = 0; i < buffer.Count; i++) { double v = buffer[i] / 32768.0; sum += v * v; }
-            return Math.Sqrt(sum / buffer.Count);
+            for (int i = start; i < end; i++) { double v = buffer[i] / 32768.0; sum += v * v; }
+            return Math.Sqrt(sum / (end - start));
+        }
+
+        double PeakFrameRms(int limit)
+        {
+            double peak = 0;
+            for (int start = 0; start < limit; start += frameFrames)
+            {
+                double rms = FrameRms(start, frameFrames, limit);
+                if (rms > peak) peak = rms;
+            }
+            return peak;
+        }
+
+        double BufferRms(int limit)
+        {
+            if (limit <= 0) return 0;
+            double sum = 0;
+            for (int i = 0; i < limit; i++) { double v = buffer[i] / 32768.0; sum += v * v; }
+            return Math.Sqrt(sum / limit);
         }
 
         double TailRms(int frames)
         {
             if (buffer.Count < frames || frames <= 0) return 1;
-            int start = buffer.Count - frames;
-            double sum = 0;
-            for (int i = start; i < buffer.Count; i++) { double v = buffer[i] / 32768.0; sum += v * v; }
-            return Math.Sqrt(sum / frames);
+            return FrameRms(buffer.Count - frames, frames, buffer.Count);
         }
 
         int FindQuietestCut()
@@ -373,13 +400,7 @@ namespace DshAudio
             int bestStart = buffer.Count;
             for (int start = lowest; start <= highest; start += frameFrames)
             {
-                double sum = 0;
-                for (int i = 0; i < frameFrames; i++)
-                {
-                    double v = buffer[start + i] / 32768.0;
-                    sum += v * v;
-                }
-                double rms = Math.Sqrt(sum / frameFrames);
+                double rms = FrameRms(start, frameFrames, buffer.Count);
                 if (rms < best)
                 {
                     best = rms;
@@ -389,10 +410,35 @@ namespace DshAudio
             return bestStart;
         }
 
+        /// <summary>
+        /// Write the segment, trimmed to the speech it contains plus a small
+        /// margin. A buffer that never rises above the quiet level is dropped
+        /// instead of becoming a file the recogniser would only reject.
+        /// </summary>
         void Emit(int length, string reason)
         {
             if (length <= 0) return;
             if (length > buffer.Count) length = buffer.Count;
+            double peak = PeakFrameRms(length);
+            if (peak < FloorRms) { buffer.RemoveRange(0, length); return; }
+            double quiet = TrimRms(peak);
+            int first = -1;
+            int last = -1;
+            for (int start = 0; start < length; start += frameFrames)
+            {
+                if (FrameRms(start, frameFrames, length) >= quiet)
+                {
+                    if (first < 0) first = start;
+                    last = Math.Min(length, start + frameFrames);
+                }
+            }
+            if (first < 0) { buffer.RemoveRange(0, length); return; }
+            int margin = (int)(sampleRate * KeepMarginSeconds);
+            int begin = Math.Max(0, first - margin);
+            int end = Math.Min(length, last + margin);
+            int kept = end - begin;
+            if (kept < sampleRate / 4) { buffer.RemoveRange(0, length); return; }
+
             segmentIndex++;
             string path = Path.Combine(outDir, "seg-" + segmentIndex.ToString("D6") + ".wav");
             double sumSquares = 0;
@@ -400,7 +446,7 @@ namespace DshAudio
             using (var writer = new BinaryWriter(stream))
             {
                 writer.Write(new byte[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
-                writer.Write((uint)(36 + length * 2));
+                writer.Write((uint)(36 + kept * 2));
                 writer.Write(new byte[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E' });
                 writer.Write(new byte[] { (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
                 writer.Write((uint)16);
@@ -411,11 +457,11 @@ namespace DshAudio
                 writer.Write((ushort)2);
                 writer.Write((ushort)16);
                 writer.Write(new byte[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
-                writer.Write((uint)(length * 2));
-                var bytes = new byte[length * 2];
-                for (int i = 0; i < length; i++)
+                writer.Write((uint)(kept * 2));
+                var bytes = new byte[kept * 2];
+                for (int i = 0; i < kept; i++)
                 {
-                    short value = buffer[i];
+                    short value = buffer[begin + i];
                     sumSquares += (value / 32768.0) * (value / 32768.0);
                     bytes[i * 2] = (byte)(value & 0xFF);
                     bytes[i * 2 + 1] = (byte)((value >> 8) & 0xFF);
@@ -423,21 +469,28 @@ namespace DshAudio
                 writer.Write(bytes);
             }
             buffer.RemoveRange(0, length);
-            double seconds = (double)length / sampleRate;
-            double rms = Math.Sqrt(sumSquares / length);
+            double seconds = (double)kept / sampleRate;
+            double rms = Math.Sqrt(sumSquares / kept);
             Console.WriteLine("{\"type\":\"segment\",\"index\":" + segmentIndex +
                 ",\"file\":\"" + Path.GetFileName(path) + "\",\"seconds\":" + seconds.ToString("F2") +
-                ",\"rms\":" + rms.ToString("F5") + ",\"reason\":\"" + reason + "\"}");
+                ",\"rms\":" + rms.ToString("F5") + ",\"reason\":\"" + (length >= hardFrames ? "cut" : "pause") + "\"}");
             Console.Out.Flush();
+        }
+
+        public string DebugJson()
+        {
+            double peak = PeakFrameRms(buffer.Count);
+            return "{\"type\":\"debug\",\"frames\":" + buffer.Count +
+                ",\"rms\":" + BufferRms(buffer.Count).ToString("F5") +
+                ",\"peak\":" + peak.ToString("F5") +
+                ",\"tail\":" + TailRms(quietFrames).ToString("F5") + "}";
         }
 
         public void Close()
         {
             if (disposed) return;
             disposed = true;
-            // The tail of a stopped recording is only worth a file when it holds
-            // actual audio; a quiet fragment just becomes a junk segment.
-            if (buffer.Count > 0 && BufferRms() >= DiscardRms) Emit(buffer.Count, "pause");
+            if (buffer.Count > 0) Emit(buffer.Count, "pause");
         }
     }
 
@@ -487,6 +540,8 @@ namespace DshAudio
                 var micBuffer = new List<float>(sampleRate);
                 var mixed = new List<short>(sampleRate);
                 string stopFlag = Path.Combine(outDir, "stop.flag");
+                bool debug = Environment.GetEnvironmentVariable("LC_CAPTURE_DEBUG") == "1";
+                long lastDebug = 0;
 
                 while (!File.Exists(stopFlag))
                 {
@@ -509,6 +564,14 @@ namespace DshAudio
                         mixed.Add((short)(value * 32767f));
                     }
                     writer.Write(mixed.ToArray(), mixed.Count);
+                    // LC_CAPTURE_DEBUG=1 prints the live level once a second; it is
+                    // how "no sound detected" is told apart from "audio is silent".
+                    if (debug && Environment.TickCount - lastDebug > 1000)
+                    {
+                        lastDebug = Environment.TickCount;
+                        Console.WriteLine(writer.DebugJson());
+                        Console.Out.Flush();
+                    }
                     Thread.Sleep(15);
                 }
                 writer.Close();
