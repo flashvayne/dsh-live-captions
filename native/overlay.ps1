@@ -211,13 +211,20 @@ function Save-Geometry {
   Save-Settings @{ lyricX = [int]$win.Left; lyricY = [int]$win.Top; lyricW = [int]$win.Width; lyricH = [int]$win.Height }
 }
 
-# ------------------------------------------------------------------ resize
-# A transparent WPF window cannot use the native resize frame, so the edges are
-# handled here: mouse down near an edge starts a drag, SetWindowPos follows it,
-# and the final rect is persisted.
+# ------------------------------------------------------------------ move/resize
+# A transparent WPF window cannot use the native resize frame, and Window.DragMove
+# silently does nothing on the click that activates an inactive window, so both
+# gestures are driven by hand. Every gesture keeps an immutable start rect and
+# applies the *total* delta to it: adding the delta to the already-updated size
+# (start + delta, then size + delta ...) grows the window quadratically, which is
+# why a tiny pull used to blow it up.
 
-$script:resize = $null
-$EDGE = 7
+$script:gesture = $null
+# Generous edge band: the visible border is 1px and the rounded corner eats into
+# the very corner, so a wider band is what makes "grab the edge" reliable.
+$EDGE = 10
+# Height of the toolbar strip; presses there belong to the buttons, not a drag.
+$TOOLBAR = 40
 
 function Get-Zone {
   param([System.Windows.Point]$Point)
@@ -238,27 +245,53 @@ function Get-Zone {
   return ''
 }
 
+function Get-WorkAreaDip {
+  $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+  $scale = if ($script:scale -gt 0) { $script:scale } else { 1.0 }
+  return @{ x = $area.Left / $scale; y = $area.Top / $scale; w = $area.Width / $scale; h = $area.Height / $scale }
+}
+
 $root.Add_PreviewMouseMove({
   param($sender, $event)
-  if ($null -ne $script:resize) {
+  $gesture = $script:gesture
+  if ($null -ne $gesture) {
     $now = [System.Windows.Forms.Cursor]::Position
-    $state = $script:resize
-    $scale = $script:scale
-    $dx = ($now.X - $state.startX) / $scale
-    $dy = ($now.Y - $state.startY) / $scale
-    $x = $state.x; $y = $state.y; $w = $state.w; $h = $state.h
-    if ($state.zone.Contains('e')) { $w = [Math]::Max(320, $state.w + $dx) }
-    if ($state.zone.Contains('s')) { $h = [Math]::Max(140, $state.h + $dy) }
-    if ($state.zone.Contains('w')) {
-      $w = [Math]::Max(320, $state.w - $dx)
-      $x = $state.x + ($state.w - $w)
+    $scale = if ($script:scale -gt 0) { $script:scale } else { 1.0 }
+    $dx = ($now.X - $gesture.startX) / $scale
+    $dy = ($now.Y - $gesture.startY) / $scale
+    if ($gesture.kind -eq 'drag') {
+      $area = Get-WorkAreaDip
+      $x = [Math]::Max($area.x - $gesture.w0 + 80, [Math]::Min($gesture.x0 + $dx, $area.x + $area.w - 80))
+      $y = [Math]::Max($area.y, [Math]::Min($gesture.y0 + $dy, $area.y + $area.h - 48))
+      $win.Left = $x
+      $win.Top = $y
+    } else {
+      $x = $gesture.x0
+      $y = $gesture.y0
+      $w = $gesture.w0
+      $h = $gesture.h0
+      $zone = $gesture.zone
+      if ($zone.Contains('e')) { $w = [Math]::Max(320, $gesture.w0 + $dx) }
+      if ($zone.Contains('s')) { $h = [Math]::Max(140, $gesture.h0 + $dy) }
+      if ($zone.Contains('w')) {
+        $w = [Math]::Max(320, $gesture.w0 - $dx)
+        $x = $gesture.x0 + ($gesture.w0 - $w)
+      }
+      if ($zone.Contains('n')) {
+        $h = [Math]::Max(140, $gesture.h0 - $dy)
+        $y = $gesture.y0 + ($gesture.h0 - $h)
+      }
+      # Never let a drag push the box off the work area.
+      $area = Get-WorkAreaDip
+      $w = [Math]::Min($w, $area.w - 8)
+      $h = [Math]::Min($h, $area.h - 8)
+      if ($x -lt $area.x) { $w = $w + ($x - $area.x); $w = [Math]::Max(320, $w); $x = $area.x }
+      if ($y -lt $area.y) { $h = $h + ($y - $area.y); $h = [Math]::Max(140, $h); $y = $area.y }
+      $win.Left = $x
+      $win.Top = $y
+      $win.Width = $w
+      $win.Height = $h
     }
-    if ($state.zone.Contains('n')) {
-      $h = [Math]::Max(140, $state.h - $dy)
-      $y = $state.y + ($state.h - $h)
-    }
-    $script:resize.x = $x; $script:resize.y = $y; $script:resize.w = $w; $script:resize.h = $h
-    $win.Left = $x; $win.Top = $y; $win.Width = $w; $win.Height = $h
     $event.Handled = $true
     return
   }
@@ -280,36 +313,55 @@ $root.Add_PreviewMouseMove({
 $root.Add_PreviewMouseLeftButtonDown({
   param($sender, $event)
   if ($script:settings.lyricLocked) { return }
-  $zone = Get-Zone -Point $event.GetPosition($win)
+  if ($null -ne $script:gesture) { return }
+  $point = $event.GetPosition($win)
+  $zone = Get-Zone -Point $point
+  $cursor = [System.Windows.Forms.Cursor]::Position
   if ($zone -ne '') {
-    $cursor = [System.Windows.Forms.Cursor]::Position
-    $script:resize = @{
-      zone = $zone; startX = $cursor.X; startY = $cursor.Y
-      x = [double]$win.Left; y = [double]$win.Top; w = [double]$win.Width; h = [double]$win.Height
+    $script:gesture = @{
+      kind = 'resize'; zone = $zone
+      startX = $cursor.X; startY = $cursor.Y
+      x0 = [double]$win.Left; y0 = [double]$win.Top
+      w0 = [double]$win.Width; h0 = [double]$win.Height
     }
     $root.CaptureMouse() | Out-Null
     $event.Handled = $true
+    return
   }
+  # A press on the toolbar belongs to its buttons.
+  if ($point.Y -lt $TOOLBAR) { return }
+  $script:gesture = @{
+    kind = 'drag'
+    startX = $cursor.X; startY = $cursor.Y
+    x0 = [double]$win.Left; y0 = [double]$win.Top
+    w0 = [double]$win.Width; h0 = [double]$win.Height
+  }
+  # Taking focus makes the very first drag behave like every later one.
+  try { $win.Activate() } catch { }
+  $win.Cursor = [System.Windows.Input.Cursors]::SizeAll
+  $root.CaptureMouse() | Out-Null
+  $event.Handled = $true
 })
 
 $root.Add_PreviewMouseLeftButtonUp({
   param($sender, $event)
-  if ($null -ne $script:resize) {
-    $script:resize = $null
+  if ($null -ne $script:gesture) {
+    $script:gesture = $null
     $root.ReleaseMouseCapture()
+    $win.Cursor = [System.Windows.Input.Cursors]::Arrow
     Save-Geometry
     $event.Handled = $true
   }
 })
 
-$root.Add_MouseLeftButtonDown({
+# A cancelled capture (alt-tab, another app stealing the mouse) must not leave a
+# half-finished gesture behind.
+$root.Add_LostMouseCapture({
   param($sender, $event)
-  if ($script:settings.lyricLocked) { return }
-  # The toolbar holds buttons: a press there must not become a window drag.
-  if ($event.GetPosition($win).Y -lt 36) { return }
-  if ((Get-Zone -Point $event.GetPosition($win)) -ne '') { return }
-  try { $win.DragMove() } catch { return }
-  Save-Geometry
+  if ($null -ne $script:gesture) {
+    $script:gesture = $null
+    Save-Geometry
+  }
 })
 
 # ------------------------------------------------------------------ render
