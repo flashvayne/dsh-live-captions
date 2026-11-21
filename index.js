@@ -261,6 +261,10 @@ export function apply(ctx, config) {
   controller.overlayDescribe = () => overlay.describe()
   // Starting a session shows the overlay; the panel's switch can still hide it.
   controller.overlayOpen = () => overlay.open(controller.settings)
+
+  // The recognition model is required, so its download starts as soon as the
+  // plugin is active rather than on the first session.
+  controller.prepareAsrInBackground()
   log(`overlay: always-on-top window ${overlay.describe().supported ? 'available' : 'unavailable (will fall back to PiP / in-app)'}`)
 
   ctx.effect(() => () => {
