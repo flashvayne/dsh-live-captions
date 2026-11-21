@@ -88,26 +88,43 @@ $win.Top = 200
 $win.Width = 748
 $win.Height = 235
 
-$color = [System.Windows.Media.Color]::FromArgb(255, 22, 24, 30)
+# #20252c is the theme's overlay surface, the same colour the in-app overlay used.
+$color = [System.Windows.Media.Color]::FromArgb(255, 32, 37, 44)
+$hoverBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(38, 255, 255, 255))
+$lineBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(40, 255, 255, 255))
+# Muted toolbar text that brightens on hover, like the in-app overlay's tools.
+$mutedTextBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(210, 152, 160, 169))
+$brightTextBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(255, 232, 234, 240))
 $root = New-Object System.Windows.Controls.Border
 $root.CornerRadius = New-Object System.Windows.CornerRadius(12)
 $root.Background = New-Object System.Windows.Media.SolidColorBrush($color)
-$root.BorderBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(46, 255, 255, 255))
+$root.BorderBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(33, 255, 255, 255))
 $root.BorderThickness = New-Object System.Windows.Thickness(1)
 $root.Padding = New-Object System.Windows.Thickness(12, 8, 12, 8)
+$win.FontFamily = New-Object System.Windows.Media.FontFamily('Microsoft YaHei UI, Segoe UI')
 
 $grid = New-Object System.Windows.Controls.Grid
 $rowTools = New-Object System.Windows.Controls.RowDefinition
 $rowTools.Height = [System.Windows.GridLength]::Auto
+$rowRule = New-Object System.Windows.Controls.RowDefinition
+$rowRule.Height = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Pixel)
 $rowBody = New-Object System.Windows.Controls.RowDefinition
 $rowBody.Height = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
 $grid.RowDefinitions.Add($rowTools)
+$grid.RowDefinitions.Add($rowRule)
 $grid.RowDefinitions.Add($rowBody)
 
 $tools = New-Object System.Windows.Controls.StackPanel
 $tools.Orientation = 'Horizontal'
-$tools.Margin = New-Object System.Windows.Thickness(0, 0, 0, 6)
 [System.Windows.Controls.Grid]::SetRow($tools, 0)
+
+# The thin rule under the tool row, and the dashed rules between entries, are
+# what make this window read like the in-app overlay it replaces.
+$rule = New-Object System.Windows.Shapes.Rectangle
+$rule.Height = 1
+$rule.Fill = $lineBrush
+$rule.Margin = New-Object System.Windows.Thickness(0, 2, 0, 8)
+[System.Windows.Controls.Grid]::SetRow($rule, 1)
 
 function New-ToolButton {
   param([string]$Text, [string]$Tip, [scriptblock]$OnClick)
@@ -118,42 +135,53 @@ function New-ToolButton {
   $button.Margin = New-Object System.Windows.Thickness(0, 0, 4, 0)
   $button.FontSize = 11
   $button.Background = [System.Windows.Media.Brushes]::Transparent
-  $button.Foreground = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(230, 232, 234, 240))
+  $button.Foreground = $mutedTextBrush
   $button.BorderBrush = [System.Windows.Media.Brushes]::Transparent
   $button.Cursor = [System.Windows.Input.Cursors]::Hand
   $button.Add_Click($OnClick)
+  $button.Add_MouseEnter({
+    param($sender, $event)
+    $sender.Background = $hoverBrush
+    $sender.Foreground = $brightTextBrush
+  })
+  $button.Add_MouseLeave({
+    param($sender, $event)
+    $sender.Background = [System.Windows.Media.Brushes]::Transparent
+    $sender.Foreground = $mutedTextBrush
+  })
   return $button
 }
 
-$tools.Children.Add((New-ToolButton -Text ([string]$labels.fontOut) -Tip ([string]$labels.font) -OnClick {
+$fontOutButton = New-ToolButton -Text ([string]$labels.fontOut) -Tip ([string]$labels.font) -OnClick {
   $script:settings.lyricFontSize = [Math]::Max(14, [int]$script:settings.lyricFontSize - 2)
   Save-Settings @{ lyricFontSize = $script:settings.lyricFontSize }
-  $script:dirty = $true
-})) | Out-Null
-$tools.Children.Add((New-ToolButton -Text ([string]$labels.fontIn) -Tip ([string]$labels.font) -OnClick {
+}
+$tools.Children.Add($fontOutButton) | Out-Null
+$fontInButton = New-ToolButton -Text ([string]$labels.fontIn) -Tip ([string]$labels.font) -OnClick {
   $script:settings.lyricFontSize = [Math]::Min(34, [int]$script:settings.lyricFontSize + 2)
   Save-Settings @{ lyricFontSize = $script:settings.lyricFontSize }
-  $script:dirty = $true
-})) | Out-Null
-$tools.Children.Add((New-ToolButton -Text ([string]$labels.dimOut) -Tip ([string]$labels.dim) -OnClick {
+}
+$tools.Children.Add($fontInButton) | Out-Null
+$dimOutButton = New-ToolButton -Text ([string]$labels.dimOut) -Tip ([string]$labels.dim) -OnClick {
   $script:settings.lyricOpacity = [Math]::Max(0.3, [double]$script:settings.lyricOpacity - 0.08)
   Save-Settings @{ lyricOpacity = $script:settings.lyricOpacity }
-  $script:dirty = $true
-})) | Out-Null
-$tools.Children.Add((New-ToolButton -Text ([string]$labels.dimIn) -Tip ([string]$labels.dim) -OnClick {
+}
+$tools.Children.Add($dimOutButton) | Out-Null
+$dimInButton = New-ToolButton -Text ([string]$labels.dimIn) -Tip ([string]$labels.dim) -OnClick {
   $script:settings.lyricOpacity = [Math]::Min(1, [double]$script:settings.lyricOpacity + 0.08)
   Save-Settings @{ lyricOpacity = $script:settings.lyricOpacity }
-  $script:dirty = $true
-})) | Out-Null
-$tools.Children.Add((New-ToolButton -Text ([string]$labels.source) -Tip ([string]$labels.source) -OnClick {
+}
+$tools.Children.Add($dimInButton) | Out-Null
+$script:sourceButton = New-ToolButton -Text ([string]$labels.sourceOn) -Tip ([string]$labels.source) -OnClick {
   $script:settings.lyricShowSource = -not [bool]$script:settings.lyricShowSource
   Save-Settings @{ lyricShowSource = $script:settings.lyricShowSource }
-  $script:dirty = $true
-})) | Out-Null
-$tools.Children.Add((New-ToolButton -Text ([string]$labels.lock) -Tip ([string]$labels.lockHint) -OnClick {
+}
+$tools.Children.Add($script:sourceButton) | Out-Null
+$lockButton = New-ToolButton -Text ([string]$labels.lock) -Tip ([string]$labels.lockHint) -OnClick {
   $script:settings.lyricLocked = $true
   Save-Settings @{ lyricLocked = $true }
-})) | Out-Null
+}
+$tools.Children.Add($lockButton) | Out-Null
 $closeButton = New-ToolButton -Text ([string]$labels.closeGlyph) -Tip ([string]$labels.close) -OnClick {
   Invoke-LcApi -Method POST -Path '/command' -Body @{ action = 'overlay_close' } | Out-Null
   $script:running = $false
@@ -165,19 +193,19 @@ $closeHost.Orientation = 'Horizontal'
 $closeHost.HorizontalAlignment = 'Right'
 $closeHost.Children.Add($closeButton) | Out-Null
 $tools.Children.Add($closeHost) | Out-Null
-$tools.Children | ForEach-Object { if ($_ -is [System.Windows.Controls.Button]) { $_.HorizontalAlignment = 'Left' } }
 $tools.Children[$tools.Children.Count - 1].HorizontalAlignment = 'Stretch'
 
 $scroll = New-Object System.Windows.Controls.ScrollViewer
 $scroll.VerticalScrollBarVisibility = 'Hidden'
 $scroll.HorizontalScrollBarVisibility = 'Disabled'
-[System.Windows.Controls.Grid]::SetRow($scroll, 1)
+[System.Windows.Controls.Grid]::SetRow($scroll, 2)
 
 $items = New-Object System.Windows.Controls.StackPanel
 $items.Margin = New-Object System.Windows.Thickness(0, 2, 4, 0)
 $scroll.Content = $items
 
 $grid.Children.Add($tools) | Out-Null
+$grid.Children.Add($rule) | Out-Null
 $grid.Children.Add($scroll) | Out-Null
 $root.Child = $grid
 $win.Content = $root
@@ -296,7 +324,8 @@ $root.Add_PreviewMouseMove({
     return
   }
   if (-not $win.IsMouseOver) { return }
-  $zone = Get-Zone -Point $event.GetPosition($win)
+  $point = $event.GetPosition($win)
+  $zone = Get-Zone -Point $point
   switch ($zone) {
     'w' { $win.Cursor = [System.Windows.Input.Cursors]::SizeWE }
     'e' { $win.Cursor = [System.Windows.Input.Cursors]::SizeWE }
@@ -306,7 +335,11 @@ $root.Add_PreviewMouseMove({
     'se' { $win.Cursor = [System.Windows.Input.Cursors]::SizeNWSE }
     'ne' { $win.Cursor = [System.Windows.Input.Cursors]::SizeNESW }
     'sw' { $win.Cursor = [System.Windows.Input.Cursors]::SizeNESW }
-    default { $win.Cursor = [System.Windows.Input.Cursors]::Arrow }
+    default {
+      # Body is draggable, so it advertises a hand like the in-app box did.
+      if ($point.Y -ge $TOOLBAR) { $win.Cursor = [System.Windows.Input.Cursors]::Hand }
+      else { $win.Cursor = [System.Windows.Input.Cursors]::Arrow }
+    }
   }
 })
 
@@ -400,7 +433,12 @@ function Update-Entries {
   if ($locked -ne $script:lockedShown) {
     $script:lockedShown = $locked
     $root.IsHitTestVisible = -not $locked
-    if ($locked) { $tools.Visibility = 'Collapsed' } else { $tools.Visibility = 'Visible' }
+    if ($locked) { $tools.Visibility = 'Collapsed'; $rule.Visibility = 'Collapsed' } else { $tools.Visibility = 'Visible'; $rule.Visibility = 'Visible' }
+  }
+  # The source toggle carries its state in the glyph, exactly like the panel's
+  # source button does.
+  if ($null -ne $script:sourceButton) {
+    $script:sourceButton.Content = if ($script:settings.lyricShowSource) { [string]$labels.sourceOn } else { [string]$labels.sourceOff }
   }
 
   $running = ($state.status -eq 'running' -or $state.status -eq 'starting')
@@ -420,8 +458,7 @@ function Update-Entries {
     for ($index = $limit; $index -lt $rows.Count; $index++) {
       $row = $rows[$index]
       $entry = New-Object System.Windows.Controls.Grid
-      $entry.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)
-      $colTime = New-Object System.Windows.Controls.ColumnDefinition
+      $entry.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)      $colTime = New-Object System.Windows.Controls.ColumnDefinition
       $colTime.Width = [System.Windows.GridLength]::Auto
       $colText = New-Object System.Windows.Controls.ColumnDefinition
       $colText.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
@@ -443,6 +480,17 @@ function Update-Entries {
       $entry.Children.Add($stack) | Out-Null
       [System.Windows.Controls.Grid]::SetColumn($stack, 1)
       $items.Children.Add($entry) | Out-Null
+      # Dashed rule between entries, the same visual separator the in-app
+      # overlay draws under every caption pair.
+      if ($index -lt $rows.Count - 1) {
+        $separator = New-Object System.Windows.Shapes.Rectangle
+        $separator.Height = 1
+        $separator.Stroke = $lineBrush
+        $separator.StrokeThickness = 1
+        $separator.StrokeDashArray = [System.Windows.Media.DoubleCollection]::new([double[]](2, 2))
+        $separator.Margin = New-Object System.Windows.Thickness(0, 0, 0, 10)
+        $items.Children.Add($separator) | Out-Null
+      }
     }
     $scroll.ScrollToEnd()
   }
