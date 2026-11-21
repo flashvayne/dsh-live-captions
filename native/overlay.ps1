@@ -491,7 +491,8 @@ function Update-Entries {
     for ($index = $limit; $index -lt $rows.Count; $index++) {
       $row = $rows[$index]
       $entry = New-Object System.Windows.Controls.Grid
-      $entry.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)      $colTime = New-Object System.Windows.Controls.ColumnDefinition
+      $entry.Margin = New-Object System.Windows.Thickness(0, 0, 0, 8)
+      $colTime = New-Object System.Windows.Controls.ColumnDefinition
       $colTime.Width = [System.Windows.GridLength]::Auto
       $colText = New-Object System.Windows.Controls.ColumnDefinition
       $colText.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
