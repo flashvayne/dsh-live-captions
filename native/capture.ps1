@@ -16,7 +16,7 @@
 #>
 param(
   [Parameter(Mandatory = $true)][string]$OutDir,
-  [int]$SegmentSeconds = 4,
+  [int]$SegmentSeconds = 6,
   [double]$MinSegmentSeconds = 1.2,
   [ValidateSet('both', 'speaker', 'mic')][string]$Source = 'both',
   [int]$SampleRate = 16000
@@ -308,13 +308,15 @@ namespace DshAudio
         readonly int frameFrames;
         // Levels are tricky on this machine: the loopback can run quiet (a
         // full-volume video measures ~0.01 RMS) while room/music noise sits
-        // around 0.003-0.005. So the pause test stays absolute (the original
-        // behaviour that produced good sentences), and only digital silence is
-        // dropped outright.
+        // around 0.003-0.005. An absolute silence threshold therefore cuts inside
+        // words (unvoiced consonants are quiet). A pause is instead recognised
+        // as 600 ms in which the LOUDEST 20 ms frame stays well below the level
+        // of the current utterance, which no consonant gap can fake.
         const double FloorRms = 0.0012;      // digital-ish silence, safe to drop
-        const double PauseRms = 0.004;       // 400 ms below this ends an utterance
+        const double PauseRatio = 0.14;      // pause = this much below the speech peak
+        const double MaxPauseRms = 0.02;     // never demand more than this
         const double KeepMarginSeconds = 0.15;
-        readonly List<short> buffer = new List<short>(16000 * 12);
+        readonly List<short> buffer = new List<short>(16000 * 16);
         int segmentIndex;
         bool disposed;
 
@@ -325,7 +327,7 @@ namespace DshAudio
             minFrames = (int)(sampleRate * minSeconds);
             hardFrames = sampleRate * maxSeconds;
             if (hardFrames <= minFrames) hardFrames = minFrames + sampleRate;
-            quietFrames = sampleRate * 2 / 5;          // 400 ms
+            quietFrames = sampleRate * 3 / 5;          // 600 ms of real pause
             dipLookback = sampleRate * 7 / 10;         // search the last 700 ms
             frameFrames = sampleRate / 50;             // 20 ms energy frames
         }
@@ -338,15 +340,37 @@ namespace DshAudio
             if (peak < FloorRms) { buffer.Clear(); return; }
             if (buffer.Count >= hardFrames)
             {
-                // A fixed 4 s cut lands mid-word; move it to the quietest 20 ms
-                // frame in the last 700 ms so it lands in a syllable gap instead.
+                // The cap still lands inside a word; move it to the quietest
+                // 20 ms frame of the last 700 ms so it lands in a syllable gap.
                 Emit(FindQuietestCut(), "cut");
             }
-            else if (TailRms(quietFrames) < PauseRms)
+            else if (buffer.Count >= quietFrames && TailMaxRms(quietFrames) < PauseLevel(peak))
             {
-                // 400 ms below the pause level: the speaker paused.
+                // 600 ms with no speech-level frame at all: a real pause. A quiet
+                // consonant only lasts tens of milliseconds, so it cannot trigger.
                 Emit(buffer.Count, "pause");
             }
+        }
+
+        static double PauseLevel(double peak)
+        {
+            double level = peak * PauseRatio;
+            if (level > MaxPauseRms) level = MaxPauseRms;
+            return level < FloorRms ? FloorRms : level;
+        }
+
+        /** Loudest 20 ms frame in the tail window: one syllable spoils a "pause". */
+        double TailMaxRms(int frames)
+        {
+            if (buffer.Count < frames) return 1;
+            int start = buffer.Count - frames;
+            double max = 0;
+            for (int at = start; at + frameFrames <= buffer.Count; at += frameFrames)
+            {
+                double rms = FrameRms(at, frameFrames, buffer.Count);
+                if (rms > max) max = rms;
+            }
+            return max;
         }
 
         /** Trimming keeps the speech and drops the silence around it. */
