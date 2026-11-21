@@ -101,6 +101,8 @@ window.__ModuleLoader__.load({
         'localModel': 'Model',
         'localHint': 'Ollama: http://127.0.0.1:11434/v1 · LM Studio: http://127.0.0.1:1234/v1',
         'engineLocalNote': 'You start this server yourself (Ollama/LM Studio/vLLM); the plugin ships no model weights. Subtitles only — minutes still use the cloud model.',
+        'keepAudio': 'Keep audio',
+        'keepAudioHint': 'Every segment stays as a WAV in this session\'s segments folder (about 1.2 GB per hour). Off, the audio is deleted as soon as it has been recognised.',
         'listening': 'Listening…',
         'noCaptions': 'Captions appear here as people speak.',
         'transcript': 'Transcript',
@@ -209,6 +211,8 @@ window.__ModuleLoader__.load({
         'localModel': '模型名',
         'localHint': 'Ollama：http://127.0.0.1:11434/v1 · LM Studio：http://127.0.0.1:1234/v1',
         'engineLocalNote': '需要你自己启动这个服务（Ollama/LM Studio/vLLM），插件不自带模型权重；只负责字幕翻译，纪要仍用云端。',
+        'keepAudio': '保留音频',
+        'keepAudioHint': '每段音频保存成 WAV，留在该会话的 segments 目录里（约 1.2 GB/小时）；关闭时识别完立即删除。',
         'listening': '正在聆听…',
         'noCaptions': '有人说话时字幕会显示在这里。',
         'transcript': '转写记录',
@@ -1082,6 +1086,8 @@ window.__ModuleLoader__.load({
       // translation is on, so they are disclosed with the switch instead of
       // sitting there as a permanently disabled-looking pair of controls.
       const translateOn = settings.translate !== false
+      // Off by default: a one-hour meeting keeps about 1.2 GB when it is on.
+      const keepAudio = settings.keepAudio === true
       const minutes = state?.minutes ?? { generating: false, text: '', path: null, error: null }
       const mt = state?.mt ?? { state: 'idle', progress: {}, model: '', error: null }
       const mtPercent = mt.progress && mt.progress.total > 0
@@ -1852,6 +1858,21 @@ window.__ModuleLoader__.load({
                     settings.translateEngine === 'local'
                       ? h('div', { className: 'mc-hint', key: 'local-note' }, t('engineLocalNote'))
                       : null,
+
+                    // Capture, not translation: keeping the WAVs is an explicit
+                    // opt-in, and the hint is the only place that says how much
+                    // disk it costs.
+                    h('div', { className: 'mc-grp', key: 'keep-audio' }, [
+                      h('div', { className: 'mc-irow', key: 'row' }, [
+                        h('span', { className: 'mc-lbl', key: 'lbl' }, t('keepAudio')),
+                        h('button', {
+                          className: 'mc-sw', key: 'sw', type: 'button', role: 'switch',
+                          'aria-checked': keepAudio, 'aria-label': t('keepAudio'),
+                          onClick: () => command({ action: 'settings', settings: { keepAudio: !keepAudio } }),
+                        }),
+                      ]),
+                      keepAudio ? h('div', { className: 'mc-hint', key: 'hint' }, t('keepAudioHint')) : null,
+                    ]),
 
                     !modelReady && !asrBusy && asr.available
                       ? h('div', { className: 'mc-hint', key: 'first-run' }, t('firstRunHint'))

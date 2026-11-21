@@ -79,7 +79,7 @@ const TOOL_PARAMETERS = {
     action: {
       type: 'string',
       enum: ['start', 'stop', 'status', 'prepare', 'install_mt_deps', 'minutes', 'settings', 'records', 'models'],
-      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（首次使用会下载约 230 MB，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源或语言；records 查看历史字幕记录（按时分秒）；models 列出可用的云端大模型与离线模型。',
+      description: 'start/stop 控制实时字幕；status 读取状态；prepare 准备识别模型（首次使用会下载约 230 MB，通常无需手动触发）；install_mt_deps 下载内置离线翻译的依赖；minutes 生成会议纪要；settings 修改来源、语言、是否保留音频或浮层参数；records 查看历史字幕记录（按时分秒）；models 列出可用的云端大模型与离线模型。',
     },
     session: {
       type: 'string',
@@ -126,6 +126,10 @@ const TOOL_PARAMETERS = {
     localModel: {
       type: 'string',
       description: '本地模型名，例如 qwen2.5:7b（Ollama）或你加载的模型 id。',
+    },
+    keepAudio: {
+      type: 'boolean',
+      description: '是否保留采集到的音频：开启后每段 WAV 留在该会话的 segments 目录（约 1.2 GB/小时），关闭时识别完立即删除。',
     },
     lyricFontSize: {
       type: 'number',
@@ -320,6 +324,7 @@ export function apply(ctx, config) {
             builtinModel: input.builtinModel,
             localBaseUrl: input.localBaseUrl,
             localModel: input.localModel,
+            keepAudio: input.keepAudio,
             lyricFontSize: input.lyricFontSize,
             lyricOpacity: input.lyricOpacity,
             lyricX: input.lyricX,

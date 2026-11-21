@@ -90,7 +90,9 @@ $win.Height = 235
 
 # #20252c is the theme's overlay surface, the same colour the in-app overlay used.
 $color = [System.Windows.Media.Color]::FromArgb(255, 32, 37, 44)
-$hoverBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(38, 255, 255, 255))
+# Barely-there hover wash: a full 15% white read as a pressed chip on the card,
+# so the tool buttons only lift a couple of steps above the background.
+$hoverBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(20, 255, 255, 255))
 $lineBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(40, 255, 255, 255))
 # Muted toolbar text that brightens on hover, like the in-app overlay's tools.
 $mutedTextBrush = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(210, 152, 160, 169))
@@ -126,6 +128,28 @@ $rule.Fill = $lineBrush
 $rule.Margin = New-Object System.Windows.Thickness(0, 2, 0, 8)
 [System.Windows.Controls.Grid]::SetRow($rule, 1)
 
+# The stock WPF button template paints its own light-blue hover and focus wash,
+# which reads as a bright chip on this dark card and ignores the brushes set
+# below. A minimal template keeps the background ours: transparent at rest, a
+# barely-there wash on hover, rounded like the in-app tool buttons.
+$toolTemplate = @"
+<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 TargetType="{x:Type Button}">
+  <Border x:Name="Shell" Background="{TemplateBinding Background}"
+          BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+          CornerRadius="6" SnapsToDevicePixels="True">
+    <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center"
+                      VerticalAlignment="Center" RecognizesAccessKey="False" />
+  </Border>
+  <ControlTemplate.Triggers>
+    <Trigger Property="IsKeyboardFocused" Value="True">
+      <Setter TargetName="Shell" Property="BorderBrush" Value="#6F9BFF" />
+    </Trigger>
+  </ControlTemplate.Triggers>
+</ControlTemplate>
+"@
+
 function New-ToolButton {
   param([string]$Text, [string]$Tip, [scriptblock]$OnClick)
   $button = New-Object System.Windows.Controls.Button
@@ -137,7 +161,10 @@ function New-ToolButton {
   $button.Background = [System.Windows.Media.Brushes]::Transparent
   $button.Foreground = $mutedTextBrush
   $button.BorderBrush = [System.Windows.Media.Brushes]::Transparent
+  # A permanent 1 px border keeps the focus outline from shifting the layout.
+  $button.BorderThickness = New-Object System.Windows.Thickness(1)
   $button.Cursor = [System.Windows.Input.Cursors]::Hand
+  $button.Template = [System.Windows.Markup.XamlReader]::Parse($toolTemplate)
   $button.Add_Click($OnClick)
   $button.Add_MouseEnter({
     param($sender, $event)

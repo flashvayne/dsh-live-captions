@@ -81,7 +81,7 @@ dsh plugin add dsh-live-captions
 | 翻译字幕 | 开关；打开后多一行「目标语言」下拉框，关掉时显示灰字说明 |
 | 字幕桌面浮层 | 开关；锁定状态下这里会出现「解锁」按钮，关闭浮层后这里是唯一的重新打开入口 |
 | 转写记录 | 标题右边是「条数 · 段音频」、▾/▸ 折叠、⧉ 弹出独立窗口；**默认折叠** |
-| 底部 | 「生成纪要」「记录」「⋯」三个按钮，「⋯」展开更多设置（翻译引擎、模型、离线模型下载、本地服务地址） |
+| 底部 | 「生成纪要」「记录」「⋯」三个按钮，「⋯」展开更多设置（翻译引擎、模型、离线模型下载、本地服务地址、是否保留音频） |
 
 ## 字幕桌面浮层
 
@@ -146,7 +146,7 @@ agent 工具里的 `minutes` 动作走另一条路：直接让插件生成纪要
 
 | 数据 | 去哪了 |
 |---|---|
-| 采集到的音频 | 只写进本机临时 WAV，识别成功后立刻删除（一小时会议约 1.2 GB，默认不留；配置里 `keepAudio: true` 可保留） |
+| 采集到的音频 | 只写进本机临时 WAV，**默认识别成功后立刻删除**（一小时会议约 1.2 GB）；需要留存时打开面板「⋯ → 保留音频」，音频会留在该会话的 `segments/` 目录里 |
 | 原文识别 | 你的 CPU（SenseVoice），不上传 |
 | 译文 | 选了云端模型时，字幕文本发给当前配置的模型服务；选内置离线模型或自建服务时不出机器 |
 | 转写、纪要、设置、缓存 | `~/.dsh/live-captions/`，只在本机 |
@@ -176,7 +176,7 @@ agent 工具里的 `minutes` 动作走另一条路：直接让插件生成纪要
 | `translate` | `true` | 是否翻译 |
 | `translateEngine` | `cloud` | `cloud` / `builtin` / `local` |
 | `minSegmentSeconds` | `1.2` | 最短段，过滤咳嗽这类短噪声 |
-| `keepAudio` | `false` | 是否保留每段音频 |
+| `keepAudio` | `false` | 是否保留每段音频（面板「⋯ → 保留音频」也能改） |
 | `localBaseUrl` / `localModel` | Ollama 默认 | 自建 OpenAI 兼容服务 |
 
 运行中的来源、语言、引擎也能直接在面板里改，改动写进 `dataRoot/settings.json`，覆盖这里的默认值。
@@ -186,6 +186,7 @@ agent 工具里的 `minutes` 动作走另一条路：直接让插件生成纪要
 | 内容 | 路径 |
 |---|---|
 | 转写 | `~/.dsh/live-captions/sessions/<时间>/transcript.jsonl` |
+| 保留下来的音频（开了「保留音频」才有） | `~/.dsh/live-captions/sessions/<时间>/segments/*.wav` |
 | 纪要（agent 工具生成） | `~/.dsh/live-captions/minutes/<时间>-minutes.md` |
 | 运行日志 | `~/.dsh/live-captions/logs/live-captions.log` |
 | 面板改过的设置 | `~/.dsh/live-captions/settings.json` |
