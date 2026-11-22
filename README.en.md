@@ -6,7 +6,7 @@ Real-time multilingual subtitles from the audio your computer plays and your mic
 
 ![The always-on-top caption card: the recognised source line above, the translation below, and a tool row with size, opacity, source line, lock and close](https://raw.githubusercontent.com/flashvayne/dsh-live-captions/main/docs/images/overlay.png)
 
-> Windows x64 only: capture uses the WASAPI loopback, and the overlay is a PowerShell + WPF window. Everything else — the panel, the recognition model, translation, minutes and records — runs inside DeepSeek Harness.
+> Supports **Windows 10/11 x64** and **macOS** (Apple Silicon / Intel). Capture and the always-on-top overlay are native per platform (Windows: WASAPI loopback + PowerShell/WPF; macOS: ScreenCaptureKit + AppKit, sources in `native/`, compiled automatically on first use). Everything else — the panel, the recognition model, translation, minutes and records — runs inside DeepSeek Harness and is identical on both platforms.
 
 ## Contents
 
@@ -31,7 +31,7 @@ Real-time multilingual subtitles from the audio your computer plays and your mic
 
 ## Features
 
-- **Two audio sources**: the default Windows speaker (WASAPI loopback) and the default microphone — either one alone, or both mixed.
+- **Two audio sources**: the system speakers (loopback) and the default microphone — either one alone, or both mixed.
 - **Recognition on this machine**: SenseVoiceSmall + Silero VAD run on your CPU; audio never leaves the machine. The ~230 MB model **downloads in the background as soon as the plugin is active**, then stays cached locally.
 - **Live captions**: a segment ends at a real pause; while you are still talking, the audio received so far is recognised every 1.5 seconds, so the first sentence appears after about 2 seconds, and a hard-split half-sentence is merged back into the same line.
 - **Many languages**: source language auto / Chinese / English / Cantonese / Japanese / Korean; subtitle language Chinese, English, Japanese, Korean, Cantonese, Spanish, French, German, Russian or Portuguese.
@@ -44,12 +44,13 @@ Real-time multilingual subtitles from the audio your computer plays and your mic
 
 | Item | Requirement |
 |---|---|
-| OS | **Windows 10 / 11 x64** — capture uses the system WASAPI loopback and the overlay is a PowerShell + WPF window |
+| OS | **Windows 10 / 11 x64** (WASAPI loopback) or **macOS 13+** (ScreenCaptureKit system audio + AVAudioEngine mic) |
 | DeepSeek Harness | `>= 0.2.2-rc.1`, desktop build or any build with the browser UI |
 | Speech recognition | The host's speech-to-text service and SenseVoice provider; the plugin's patch inserts both rows for you |
+| macOS extras | Xcode Command Line Tools (`xcode-select --install`; the Swift helpers are compiled automatically on first enable) and Screen Recording + Microphone permission for DeepSeek Harness in System Settings |
 | Disk | ~230 MB for the recognition model; another 90–640 MB for an offline translation model |
 
-**macOS and Linux are not supported**: both loopback capture and the always-on-top window are Windows implementations, so pressing "Start" elsewhere returns an explanation. The panel, translation, minutes and records are platform-neutral; a port would need a new capture backend and a new overlay, and the host would have to ship an ONNX runtime for that platform.
+Linux is not supported yet: pressing "Start" there returns an explanation. The panel, translation, minutes and records are platform-neutral.
 
 Disable the bundled (or any other) **Voice input** plugin before enabling this one: both register the same speech service, and whichever starts second fails.
 
@@ -217,12 +218,12 @@ Panel → "Desktop overlay" switch. A locked overlay is also unlocked there.
 **The overlay ended up off screen.**
 The window is clamped back into the visible area; failing that, delete `lyricX` / `lyricY` / `lyricW` / `lyricH` from `settings.json` to return to the size derived from the font.
 
-**Does it work on macOS or Linux?**
-No — see [Requirements](#requirements).
+**Nothing happens on macOS, or a permission error shows?**
+First run needs: ① Xcode Command Line Tools (`xcode-select --install`) — the plugin compiles its two Swift helpers automatically; ② System Settings → Privacy & Security → allow **Screen & System Audio Recording** and **Microphone** for DeepSeek Harness (restart Harness afterwards). If no captions appear, play some audio so the system-audio capture has something to hear.
 
 ## Limitations
 
-- **Windows x64 only**, and it needs the system PowerShell (both the overlay and the capture helper are started through it).
+- macOS needs Screen Recording and Microphone permission (system capture goes through TCC) plus Command Line Tools for the first compile; Windows needs the system PowerShell.
 - Recognition depends on the host's `@deepseek-ai/dsh-experimental-speech-to-text` and SenseVoice provider; without them the panel reports an error.
 - With loud background music and almost no pauses, a cut can still land mid-word: the next half is merged into the same caption, but the one or two characters at the cut may be misrecognised.
 - Recognition quality depends on volume: at very low system volume the error rate rises; "Audio source → System audio" reduces room noise.

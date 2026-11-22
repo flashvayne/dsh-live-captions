@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { registerApi } from './lib/api.js'
 import { MeetingController } from './lib/controller.js'
+import { createNativeBin } from './lib/native-bin.js'
 import { createOverlayManager } from './lib/overlay-window.js'
 
 const LOG_LIMIT = 2 * 1024 * 1024
@@ -245,6 +246,19 @@ export function apply(ctx, config) {
     log(`packageDir resolution failed: ${error.message}`)
   }
 
+  // On macOS the capture and overlay helpers are Swift programs built once
+  // from `native/` into the data root; other platforms use the PowerShell
+  // helpers and this manager reports `supported: false`.
+  const nativeBin = createNativeBin({ packageDir, cacheRoot: dataRoot, log })
+  nativeBin.ensure?.('capture')?.then?.((result) => {
+    if (result.ok === true) log(`native-bin: capture helper ready (${result.path})`)
+    else if (nativeBin.supported) log(`native-bin: capture helper unavailable: ${result.error}`)
+  })?.catch?.(() => {})
+  nativeBin.ensure?.('overlay')?.then?.((result) => {
+    if (result.ok === true) log(`native-bin: overlay helper ready (${result.path})`)
+    else if (nativeBin.supported) log(`native-bin: overlay helper unavailable: ${result.error}`)
+  })?.catch?.(() => {})
+
   const controller = new MeetingController({
     ctx,
     config: config ?? {},
@@ -252,15 +266,46 @@ export function apply(ctx, config) {
     packageDir,
     sttDataRoot: resolveSttDataRoot(),
     log,
+    nativeBin,
   })
 
-  // The always-on-top overlay window is its own OS process (PowerShell/WPF), so
-  // its availability and open state flow into every state payload and the panel
-  // knows whether it can offer the true "stays above everything" overlay.
+  // The always-on-top overlay window is its own OS process (WPF via PowerShell
+  // on Windows, an AppKit panel on macOS), so its availability and open state
+  // flow into every state payload and the panel knows whether it can offer the
+  // true "stays above everything" overlay.
+  // Pre-build the overlay helper so a session start can open it synchronously.
+  let nativeOverlayPath = null
+  if (nativeBin.supported) {
+    nativeBin.ensure('overlay').then((result) => {
+      if (result.ok === true) {
+        nativeOverlayPath = result.path
+        log(`native-bin: overlay helper ready (${result.path})`)
+      } else {
+        log(`native-bin: overlay helper unavailable: ${result.error}`)
+      }
+    }).catch((error) => log(`native-bin: overlay helper build error: ${error.message}`))
+  }
+
   const overlay = createOverlayManager({
     ctx,
     log,
-    onState: () => controller.bump(),
+    // The overlay process exiting IS "the user closed the overlay" (its close
+    // button terminates it, and so does a crash). Persist lyricVisible: false
+    // in that case so the web client never falls back to the in-page caption
+    // box — "closed" must mean closed, not "switch to a different overlay".
+    onState: () => {
+      const described = overlay.describe()
+      // A failure means the window could not run (spawn error / crash): keep
+      // the in-page fallback alive. Only a clean exit — the close button —
+      // counts as "the user closed the overlay".
+      if (described.open !== true && !described.failure
+        && controller.status === 'running'
+        && controller.settings?.lyricVisible !== false) {
+        controller.updateSettings({ lyricVisible: false })
+      }
+      controller.bump()
+    },
+    getNativeOverlay: () => nativeOverlayPath,
   })
   controller.overlayDescribe = () => overlay.describe()
   // Starting a session shows the overlay; the panel's switch can still hide it.

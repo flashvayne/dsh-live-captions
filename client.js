@@ -1,3 +1,58 @@
+// Testable core of the minutes auto-send flow (module scope so the offline
+// interaction test can drive it without a real browser).
+//
+// Wire-first design, mirroring how the DSH shell itself chats:
+//   1. `sessions.create({ workspaceId })` — one RPC; the Host creates the
+//      new Session (and its Agent) immediately, no UI involvement.
+//   2. `session.prompt([{type:'text',text}], 'queue')` through a retained
+//      reference — this is the exact channel the chat composer uses
+//      (Remote `session/prompt`); the Host accepts the prompt and starts
+//      the turn even though no conversation view exists yet.
+//   3. `workspace.openSession(newId)` — reveal the running session.
+// No polling for slow windows, no composer draft, nothing to clear.
+// Returns what happened instead of throwing.
+async function runMinutesAutoSend(workspace, sessions, prompt) {
+  // The workspace that owns the currently open session (fall back to the
+  // most recently active one) so the new session lands in the right place.
+  let workspaceId
+  try {
+    const items = workspace.workspaces.list.getSnapshot().items ?? []
+    const current = workspace.mainReference?.sessionId
+    workspaceId = (current !== undefined
+      ? items.find((item) => (item.sessionIds ?? []).includes(current))
+      : undefined)?.workspaceId
+    if (workspaceId === undefined && items.length > 0) workspaceId = items[items.length - 1].workspaceId
+  } catch { /* workspace lookup is best-effort; Host default applies */ }
+
+  let newId
+  try {
+    newId = await sessions.create(workspaceId === undefined ? {} : { workspaceId })
+  } catch (error) {
+    return { ok: false, reason: 'create-failed', error: String(error?.message ?? error) }
+  }
+
+  const reference = sessions.retain(newId, { source: 'live-captions-minutes' })
+  try {
+    await reference.ready
+    const result = await reference.binding.session.prompt(
+      [{ type: 'text', text: prompt }], 'queue')
+    if (result !== undefined && result.ok === false) {
+      return { ok: false, reason: 'prompt-rejected', error: `${result.error?.code ?? ''}: ${result.error?.message ?? ''}` }
+    }
+  } catch (error) {
+    return { ok: false, reason: 'prompt-failed', error: String(error?.message ?? error) }
+  } finally {
+    try { reference.release() } catch { /* already released */ }
+  }
+
+  try { workspace.openSession(newId) } catch { /* navigation is cosmetic; the prompt is already sent */ }
+  return { ok: true, sessionId: newId }
+}
+
+if (typeof window !== 'undefined' && window.__ModuleLoader__ !== undefined) {
+  globalThis.__DSH_LIVE_CAPTIONS_TEST__ = { runMinutesAutoSend }
+}
+
 window.__ModuleLoader__.load({
   id: 'dsh-live-captions',
   factory(require) {
@@ -21,7 +76,9 @@ window.__ModuleLoader__.load({
         'downloadTitle': 'Downloading the speech recognition model',
         'downloadHint': 'About 230 MB, one time only. After that the audio is recognised on this machine — nothing is uploaded.',
         'minutes': 'Minutes',
-        'minutesHint': 'Open a new session with the transcript and the minutes prompt',
+        'minutesHint': 'Opens a new session and sends the minutes request automatically',
+        'minutesAutoSendFailed': 'Auto-send failed; the prompt is filled in the composer — press Enter to send.',
+        'minutesManualSend': 'The minutes prompt is ready in a new session — press Enter to send.',
         'minutesNoSession': 'Could not open a session directly; the prompt is on your clipboard.',
         'generating': 'Writing minutes…',
         'copy': 'Copy',
@@ -131,7 +188,9 @@ window.__ModuleLoader__.load({
         'downloadTitle': '正在下载语音识别模型',
         'downloadHint': '约 230 MB，只需要下载这一次；之后语音在这台机器上识别，不联网也不上传。',
         'minutes': '生成纪要',
-        'minutesHint': '在新会话里打开转写和纪要提示词',
+        'minutesHint': '自动新建会话并发送纪要请求',
+        'minutesAutoSendFailed': '自动发送失败，内容已填入输入框，请按回车发送。',
+        'minutesManualSend': '已在新会话准备好纪要内容，请按回车发送。',
         'minutesNoSession': '无法直接打开新会话，提示词已复制到剪贴板。',
         'generating': '正在生成纪要…',
         'copy': '复制',
@@ -813,9 +872,12 @@ window.__ModuleLoader__.load({
       const save = useCallback((patch) => command({ action: 'settings', settings: patch }), [command])
 
       /**
-       * "Generate minutes" now opens a fresh session with the transcript and the
-       * minutes instructions pre-filled, so the summary is an ordinary chat turn
-       * the user can steer — and the panel stays a reader.
+       * "Generate minutes" creates a fresh Session over the wire, sends the
+       * transcript plus minutes prompt into it through the same Remote
+       * `session/prompt` channel the chat composer uses (see
+       * runMinutesAutoSend at module scope), and then reveals the session —
+       * the AI starts replying without any manual Enter. On failure the
+       * prompt is pre-filled (and copied) so no work is lost.
        */
       const openMinutesSession = useCallback(async () => {
         let prompt = ''
@@ -827,20 +889,44 @@ window.__ModuleLoader__.load({
             return
           }
           prompt = payload.prompt
-          // `ctx.get` is the optional-access form: touching ctx.uiWorkspace
-          // directly throws unless the service is in our inject list, and it is
-          // only reachable in the shell, where our overlay happens to live.
+          const prefill = async (notice) => {
+            const workspace = typeof ctx?.get === 'function' ? ctx.get('uiWorkspace') : undefined
+            if (workspace !== undefined && typeof workspace.startSession === 'function') {
+              workspace.startSession(undefined, { prompt, clearPreviousDraft: true, whenDraftExists: 'replace' })
+            } else {
+              try { await navigator.clipboard.writeText(prompt) } catch { /* no clipboard */ }
+            }
+            setNotice(notice)
+            setOpen(false)
+          }
+
           const workspace = typeof ctx?.get === 'function' ? ctx.get('uiWorkspace') : undefined
-          if (workspace === undefined || typeof workspace.startSession !== 'function') {
-            try { await navigator.clipboard.writeText(prompt) } catch { /* no clipboard */ }
-            setNotice(t('minutesNoSession'))
+          // ctx is a strict proxy: even an optional-chained property read
+          // (ctx?.sessions) throws for a service outside our inject list, so
+          // never touch it. The workspace service already holds the sessions
+          // service instance it was constructed with — use that first.
+          let sessions = workspace?.sessions ?? undefined
+          if (sessions === undefined || typeof sessions.create !== 'function' || typeof sessions.retain !== 'function') {
+            try { sessions = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined } catch { sessions = undefined }
+          }
+          if (workspace === undefined || typeof workspace.openSession !== 'function'
+            || sessions === undefined || typeof sessions.create !== 'function'
+            || typeof sessions.retain !== 'function'
+            || typeof runMinutesAutoSend !== 'function') {
+            await prefill(t('minutesNoSession'))
             return
           }
-          workspace.startSession(undefined, {
-            prompt,
-            clearPreviousDraft: true,
-            whenDraftExists: 'replace',
-          })
+
+          const result = await runMinutesAutoSend(workspace, sessions, prompt)
+          if (result.ok === true) {
+            setOpen(false)
+            return
+          }
+          // The wire path failed before anything was sent: prefill the
+          // composer in a fresh session so no work is lost, then explain.
+          try { if (workspace.startSession instanceof Function) workspace.startSession(undefined, { prompt, clearPreviousDraft: true, whenDraftExists: 'replace' }) } catch { /* clipboard fallback below */ }
+          try { await navigator.clipboard.writeText(prompt) } catch { /* no clipboard */ }
+          setNotice(`${t('minutesAutoSendFailed')} (${result.reason ?? 'unknown'})`)
           setOpen(false)
         } catch (error) {
           // Never lose the work: fall back to the clipboard and say why.
@@ -1253,7 +1339,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'mc-root' }, [
         h('style', { key: 'style' }, styles),
 
-        lyricVisible && !pipActive && !overlayOpen ? h('div', {
+        lyricVisible && running && !pipActive && !overlayOpen ? h('div', {
           ref: lyricRef,
           className: `mc-lyric${lyricLocked ? ' mc-lyric-locked' : ''}`,
           key: 'lyric',
@@ -1511,6 +1597,14 @@ window.__ModuleLoader__.load({
               asr.available === false
                 ? h('div', { className: 'mc-error', key: 'asr-missing', role: 'alert' }, asr.message ?? '')
                 : null,
+              state?.setup ? h('div', { className: 'mc-warn', key: 'setup', role: 'alert' }, [
+                h('span', { key: 'text' }, state.setup),
+                h('button', {
+                  className: 'mc-ghost-btn',
+                  key: 'setup-btn',
+                  onClick: () => command({ action: 'install_clt' }),
+                }, '打开安装向导'),
+              ]) : null,
               notice ? h('div', { className: 'mc-error', key: 'notice', role: 'alert' }, notice) : null,
               state?.translationError ? h('div', { className: 'mc-error', key: 'tr-error' }, `${t('translationFailed')}: ${state.translationError}`) : null,
               (state?.warnings ?? []).map((warning, index) =>
@@ -1677,7 +1771,7 @@ window.__ModuleLoader__.load({
                       ]))),
               ]),
 
-              // Meeting minutes, only when there is a result.
+              // Meeting minutes from the agent tool, when present.
               minutes.text
                 ? h('div', { className: 'mc-grp', key: 'minutes' }, [
                     h('div', { className: 'mc-list-head', key: 'minutes-title' }, [
